@@ -1,0 +1,102 @@
+<div class="rpg-brain-settings">
+  <div class="inline-drawer">
+    <div class="inline-drawer-toggle inline-drawer-header">
+      <b>🧠 RPG-Brain</b>
+      <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+    </div>
+    <div class="inline-drawer-content">
+
+      <!-- Verbindungsstatus -->
+      <div class="rpg-brain-connection-status">
+        <span id="rpg-brain-status-dot" class="rpg-brain-dot rpg-brain-dot--disconnected"></span>
+        <span id="rpg-brain-status-text">Nicht verbunden</span>
+      </div>
+
+      <!-- LightRAG Server -->
+      <div class="rpg-brain-section">
+        <label for="rpg-brain-lightrag-url">LightRAG Server URL</label>
+        <div class="rpg-brain-input-row">
+          <input id="rpg-brain-lightrag-url" type="text" class="text_pole" placeholder="http://localhost:9621" />
+          <button id="rpg-brain-test-connection" class="menu_button" title="Verbindung testen">
+            <i class="fa-solid fa-plug"></i> Test
+          </button>
+        </div>
+      </div>
+
+      <!-- Extraktions-LLM -->
+      <div class="rpg-brain-section">
+        <h4>Extraktions-LLM</h4>
+        <small class="rpg-brain-hint">LLM für die automatische Entity-Extraktion (OpenAI-kompatibler Endpoint)</small>
+
+        <label for="rpg-brain-extraction-url">API URL</label>
+        <input id="rpg-brain-extraction-url" type="text" class="text_pole" placeholder="https://api.deepseek.com/v1" />
+
+        <label for="rpg-brain-extraction-key">API Key</label>
+        <input id="rpg-brain-extraction-key" type="password" class="text_pole" placeholder="sk-..." />
+
+        <label for="rpg-brain-extraction-model">Modell</label>
+        <input id="rpg-brain-extraction-model" type="text" class="text_pole" placeholder="deepseek-chat" />
+      </div>
+
+      <!-- Trigger-Frequenz -->
+      <div class="rpg-brain-section">
+        <label for="rpg-brain-trigger-mode">Extraktions-Frequenz</label>
+        <select id="rpg-brain-trigger-mode" class="text_pole">
+          <option value="every">Nach jeder Nachricht</option>
+          <option value="every_3">Alle 3 Nachrichten</option>
+          <option value="every_5" selected>Alle 5 Nachrichten</option>
+          <option value="every_10">Alle 10 Nachrichten</option>
+          <option value="manual">Nur manuell</option>
+        </select>
+      </div>
+
+      <!-- Token-Budget -->
+      <div class="rpg-brain-section">
+        <label for="rpg-brain-token-budget">
+          Injection Token-Budget: <span id="rpg-brain-budget-display">1500</span>
+        </label>
+        <input id="rpg-brain-token-budget" type="range" min="500" max="4000" step="100" value="1500" />
+        <div class="rpg-brain-range-labels">
+          <span>500 (Minimal)</span>
+          <span>4000 (Maximal)</span>
+        </div>
+      </div>
+
+      <!-- Sprache -->
+      <div class="rpg-brain-section">
+        <label for="rpg-brain-language">Sprache / Language</label>
+        <select id="rpg-brain-language" class="text_pole">
+          <option value="de" selected>Deutsch</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+
+      <!-- Aktionen -->
+      <div class="rpg-brain-section rpg-brain-actions">
+        <button id="rpg-brain-extract-now" class="menu_button" title="Chat jetzt analysieren">
+          <i class="fa-solid fa-brain"></i> Jetzt Extrahieren
+        </button>
+        <button id="rpg-brain-open-dashboard" class="menu_button" title="Dashboard in neuem Tab öffnen">
+          <i class="fa-solid fa-chart-line"></i> Dashboard
+        </button>
+      </div>
+
+      <!-- Stats -->
+      <div class="rpg-brain-section rpg-brain-stats">
+        <div class="rpg-brain-stat">
+          <span class="rpg-brain-stat-label">Entities:</span>
+          <span id="rpg-brain-entity-count">0</span>
+        </div>
+        <div class="rpg-brain-stat">
+          <span class="rpg-brain-stat-label">Graph Nodes:</span>
+          <span id="rpg-brain-node-count">0</span>
+        </div>
+        <div class="rpg-brain-stat">
+          <span class="rpg-brain-stat-label">Injection Tokens:</span>
+          <span id="rpg-brain-injection-tokens">0</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

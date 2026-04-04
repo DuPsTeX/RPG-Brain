@@ -1,0 +1,12 @@
+{
+  "display_name": "RPG-Brain",
+  "loading_order": 101,
+  "requires": [],
+  "optional": [],
+  "js": "index.js",
+  "css": "style.css",
+  "author": "RPG-Brain",
+  "version": "0.1.0",
+  "homePage": "",
+  "auto_update": false
+}

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RPG-Brain Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Header -->
+  <header id="dashboard-header">
+    <div class="header-left">
+      <span class="header-logo">&#129504; RPG-Brain Dashboard</span>
+      <div class="header-status">
+        <span id="dashboard-status-dot" class="status-dot status-dot--checking"></span>
+        <span id="dashboard-status-text">Verbinde...</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="header-stat">Entities: <strong id="dashboard-entity-count">0</strong></span>
+      <span class="header-stat">Nodes: <strong id="dashboard-node-count">0</strong></span>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <nav id="dashboard-nav">
+    <button class="nav-tab active" data-tab="graph">Graph</button>
+    <button class="nav-tab" data-tab="entities">Entities</button>
+    <button class="nav-tab" data-tab="types">Entity-Typen</button>
+    <button class="nav-tab" data-tab="injection">Injection</button>
+  </nav>
+
+  <!-- Tab Content -->
+  <main id="dashboard-main">
+    <!-- Graph Tab -->
+    <section id="tab-graph" class="tab-content active">
+      <div id="graph-toolbar">
+        <select id="graph-filter-type" class="dash-select">
+          <option value="">Alle Typen</option>
+        </select>
+        <input type="text" id="graph-search" class="dash-input" placeholder="Suche im Graph..." />
+        <button id="graph-refresh" class="dash-btn">Aktualisieren</button>
+        <button id="graph-fit" class="dash-btn">Anpassen</button>
+      </div>
+      <div id="graph-container"></div>
+      <div id="graph-legend"></div>
+    </section>
+
+    <!-- Entities Tab -->
+    <section id="tab-entities" class="tab-content">
+      <div id="entities-toolbar">
+        <select id="entities-filter-type" class="dash-select">
+          <option value="">Alle Typen</option>
+        </select>
+        <input type="text" id="entities-search" class="dash-input" placeholder="Entity suchen..." />
+        <button id="entities-add" class="dash-btn dash-btn--primary">+ Neue Entity</button>
+      </div>
+      <div id="entities-list"></div>
+
+      <!-- Entity Detail / Edit Modal -->
+      <div id="entity-modal" class="modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3 id="modal-title">Entity</h3>
+            <button class="modal-close">&times;</button>
+          </div>
+          <div id="modal-body"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Entity Types Tab -->
+    <section id="tab-types" class="tab-content">
+      <div id="types-toolbar">
+        <button id="types-add" class="dash-btn dash-btn--primary">+ Neuer Typ</button>
+      </div>
+      <div id="types-list"></div>
+
+      <!-- Type Edit Modal -->
+      <div id="type-modal" class="modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content modal-content--wide">
+          <div class="modal-header">
+            <h3 id="type-modal-title">Entity-Typ</h3>
+            <button class="modal-close">&times;</button>
+          </div>
+          <div id="type-modal-body"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Injection Tab -->
+    <section id="tab-injection" class="tab-content">
+      <div id="injection-toolbar">
+        <button id="injection-add-section" class="dash-btn dash-btn--primary">+ Neue Sektion</button>
+        <button id="injection-preview" class="dash-btn">Vorschau</button>
+      </div>
+      <div id="injection-sections"></div>
+      <div id="injection-preview-area" class="hidden">
+        <h4>Injection-Vorschau</h4>
+        <pre id="injection-preview-text"></pre>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="dashboard.js"></script>
+</body>
+</html>
