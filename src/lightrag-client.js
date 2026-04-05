@@ -82,11 +82,50 @@ export class LightRAGClient {
   }
 
   /**
-   * Graph-Daten abrufen (Nodes + Edges).
+   * Graph-Daten für ein bestimmtes Label abrufen (Subgraph).
+   * @param {string} label - Entity-Label
+   * @param {number} maxDepth - Maximale Tiefe (default: 3)
+   * @param {number} maxNodes - Maximale Nodes (default: 500)
    * @returns {Promise<object>}
    */
-  async getGraphData() {
-    const response = await this._fetch('/graphs');
+  async getGraphData(label, maxDepth = 3, maxNodes = 500) {
+    const params = new URLSearchParams({
+      label,
+      max_depth: String(maxDepth),
+      max_nodes: String(maxNodes),
+    });
+    const response = await this._fetch(`/graphs?${params}`);
+    return response.json();
+  }
+
+  /**
+   * Alle Graph-Labels abrufen.
+   * @returns {Promise<Array<string>>}
+   */
+  async getGraphLabels() {
+    const response = await this._fetch('/graph/label/list');
+    return response.json();
+  }
+
+  /**
+   * Beliebteste Labels (nach Vernetzung sortiert).
+   * @param {number} limit - Max Anzahl (default: 50)
+   * @returns {Promise<Array>}
+   */
+  async getPopularLabels(limit = 50) {
+    const response = await this._fetch(`/graph/label/popular?limit=${limit}`);
+    return response.json();
+  }
+
+  /**
+   * Labels suchen (Fuzzy-Suche).
+   * @param {string} query - Suchbegriff
+   * @param {number} limit - Max Anzahl (default: 50)
+   * @returns {Promise<Array>}
+   */
+  async searchLabels(query, limit = 50) {
+    const params = new URLSearchParams({ q: query, limit: String(limit) });
+    const response = await this._fetch(`/graph/label/search?${params}`);
     return response.json();
   }
 
@@ -116,15 +155,16 @@ export class LightRAGClient {
   }
 
   /**
-   * Graph-Statistiken abrufen.
+   * Graph-Statistiken abrufen (über Label-Liste).
    * @returns {Promise<object>}
    */
   async getGraphStats() {
     try {
-      const data = await this.getGraphData();
+      const labels = await this.getGraphLabels();
+      const labelList = Array.isArray(labels) ? labels : (labels?.labels || []);
       return {
-        nodeCount: data.nodes?.length ?? 0,
-        edgeCount: data.edges?.length ?? 0,
+        nodeCount: labelList.length,
+        edgeCount: 0, // Edges nur via Subgraph-Abfrage verfügbar
       };
     } catch {
       return { nodeCount: 0, edgeCount: 0 };
