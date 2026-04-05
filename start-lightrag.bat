@@ -56,6 +56,7 @@ if not exist "%APPDATA%\RPGBrain\lightrag" (
 :: Ollama-Modelle per Umgebungsvariablen setzen
 set LLM_MODEL=qwen3:8b
 set EMBEDDING_MODEL=nomic-embed-text
+set EMBEDDING_DIM=768
 
 :: LightRAG starten mit Ollama-Binding
 lightrag-server --port 9621 --working-dir "%APPDATA%\RPGBrain\lightrag" --llm-binding ollama --embedding-binding ollama

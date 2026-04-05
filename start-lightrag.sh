@@ -46,6 +46,7 @@ mkdir -p "$DATA_DIR"
 # Ollama-Modelle per Umgebungsvariablen setzen
 export LLM_MODEL=qwen3:8b
 export EMBEDDING_MODEL=nomic-embed-text
+export EMBEDDING_DIM=768
 
 # LightRAG starten mit Ollama-Binding
 lightrag-server --port 9621 --working-dir "$DATA_DIR" --llm-binding ollama --embedding-binding ollama
