@@ -144,6 +144,11 @@ async function onMessageReceived(messageIndex) {
   await extractionTrigger.onMessageReceived(messageIndex);
   updateStats();
   panel.refresh();
+
+  // Injection für nächsten Generate vorbereiten (LightRAG im Hintergrund)
+  promptInjector.prepareInjection().catch(err =>
+    console.debug('[RPG-Brain] prepareInjection Fehler:', err.message)
+  );
 }
 
 async function onChatChanged() {
@@ -159,6 +164,9 @@ async function onChatChanged() {
   entityManager.loadForChat(currentChatId);
   extractionTrigger.loadStateForChat();
   updateStats();
+
+  // Injection vorbereiten
+  promptInjector.prepareInjection().catch(() => {});
 }
 
 async function onGenerateBeforeCombinePrompts() {

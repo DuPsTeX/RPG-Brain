@@ -18,6 +18,8 @@ export class PromptInjector {
 
     this._lastInjection = '';
     this._lastInjectionTokens = 0;
+    this._cachedInjection = '';
+    this._cacheReady = false;
   }
 
   initialize() {
@@ -25,12 +27,44 @@ export class PromptInjector {
   }
 
   /**
+   * Injection im Hintergrund vorbereiten (nach Nachrichtenempfang aufrufen).
+   * So ist die Injection bereit bevor der nächste Generate losgeht.
+   */
+  async prepareInjection() {
+    try {
+      const injection = await this._buildInjectionInternal(true);
+      this._cachedInjection = injection;
+      this._cacheReady = true;
+    } catch (err) {
+      console.warn('[RPG-Brain] prepareInjection Fehler:', err.message);
+    }
+  }
+
+  /**
    * Baut die vollständige Injection für den aktuellen Kontext.
    * Wird bei GENERATE_BEFORE_COMBINE_PROMPTS aufgerufen.
+   * Nutzt Cache falls vorhanden, sonst baut synchron ohne LightRAG.
    *
    * @returns {Promise<string>} Der formatierte Injection-Text
    */
   async buildInjection() {
+    // Wenn Cache bereit, sofort zurückgeben (schnell!)
+    if (this._cacheReady) {
+      this._cacheReady = false;
+      this._lastInjection = this._cachedInjection;
+      this._lastInjectionTokens = this._estimateTokens(this._cachedInjection);
+      return this._cachedInjection;
+    }
+
+    // Fallback: ohne LightRAG bauen (schnell, nur lokale Entities)
+    return this._buildInjectionInternal(false);
+  }
+
+  /**
+   * Interne Build-Logik.
+   * @param {boolean} useLightRAG - Ob LightRAG-Query genutzt werden soll
+   */
+  async _buildInjectionInternal(useLightRAG = false) {
     const settings = this._getSettings();
     const tokenBudget = settings.tokenBudget || 1500;
 
@@ -38,7 +72,7 @@ export class PromptInjector {
     const sections = this.sectionsManager.getAllSections(true);
 
     // Relevante Entities ermitteln
-    const relevantEntities = await this._getRelevantEntities();
+    const relevantEntities = await this._getRelevantEntities(useLightRAG);
 
     // Sektionen aufbauen, Token-Budget beachten
     const parts = [];
@@ -105,33 +139,34 @@ export class PromptInjector {
 
   /**
    * Relevante Entities ermitteln.
-   * Kombiniert: lokale Entities + LightRAG-Query basierend auf letzten Nachrichten.
+   * Kombiniert: lokale Entities + optional LightRAG-Query.
+   * @param {boolean} useLightRAG - LightRAG-Query durchführen
    */
-  async _getRelevantEntities() {
+  async _getRelevantEntities(useLightRAG = false) {
     const allEntities = this.entityManager.getAllEntities();
 
-    // LightRAG-Query mit letzten Nachrichten als Kontext
+    // LightRAG-Query nur wenn explizit gewünscht (bei prepareInjection)
     let lightragResults = [];
-    try {
-      const context = SillyTavern.getContext();
-      const chat = context.chat;
-      if (chat && chat.length > 0) {
-        // Letzte 3-5 Nachrichten als Query
-        const recentMessages = chat.slice(-5)
-          .filter(msg => msg.mes && !msg.is_system)
-          .map(msg => msg.mes)
-          .join(' ');
+    if (useLightRAG) {
+      try {
+        const context = typeof SillyTavern !== 'undefined' ? SillyTavern.getContext() : null;
+        const chat = context?.chat;
+        if (chat && chat.length > 0) {
+          const recentMessages = chat.slice(-5)
+            .filter(msg => msg.mes && !msg.is_system)
+            .map(msg => msg.mes)
+            .join(' ');
 
-        if (recentMessages.trim() && this.lightrag.connected) {
-          const queryResult = await this.lightrag.query(recentMessages, 'hybrid');
-          if (queryResult?.response) {
-            lightragResults = this._extractNamesFromResponse(queryResult.response);
+          if (recentMessages.trim() && this.lightrag.connected) {
+            const queryResult = await this.lightrag.query(recentMessages, 'hybrid');
+            if (queryResult?.response) {
+              lightragResults = this._extractNamesFromResponse(queryResult.response);
+            }
           }
         }
+      } catch (err) {
+        console.debug('[RPG-Brain] LightRAG-Query fehlgeschlagen:', err.message);
       }
-    } catch (err) {
-      // LightRAG nicht verfügbar — nur lokale Entities nutzen
-      console.debug('[RPG-Brain] LightRAG-Query fehlgeschlagen:', err.message);
     }
 
     // Entities priorisieren basierend auf LightRAG-Relevanz
