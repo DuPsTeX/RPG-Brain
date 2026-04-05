@@ -43,5 +43,9 @@ echo ""
 DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/rpg-brain/lightrag"
 mkdir -p "$DATA_DIR"
 
-# LightRAG starten mit Ollama-Modellen
-lightrag-server --port 9621 --working-dir "$DATA_DIR" --llm-model qwen3:8b --embedding-model nomic-embed-text
+# Ollama-Modelle per Umgebungsvariablen setzen
+export LLM_MODEL=qwen3:8b
+export EMBEDDING_MODEL=nomic-embed-text
+
+# LightRAG starten mit Ollama-Binding
+lightrag-server --port 9621 --working-dir "$DATA_DIR" --llm-binding ollama --embedding-binding ollama
