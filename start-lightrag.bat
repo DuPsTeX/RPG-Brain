@@ -21,11 +21,38 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
+:: Pruefen ob Ollama laeuft
+echo Pruefe Ollama...
+ollama list >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [INFO] Starte Ollama...
+    start "" ollama serve
+    timeout /t 3 /nobreak >nul
+)
+
+:: Modelle pruefen und ggf. herunterladen
+echo Pruefe Modelle...
+ollama list 2>nul | findstr /i "nomic-embed-text" >nul
+if %errorlevel% neq 0 (
+    echo [INFO] Lade Embedding-Modell: nomic-embed-text ...
+    ollama pull nomic-embed-text
+)
+
+ollama list 2>nul | findstr /i "qwen3:8b" >nul
+if %errorlevel% neq 0 (
+    echo [INFO] Lade LLM-Modell: qwen3:8b ...
+    ollama pull qwen3:8b
+)
+
+echo.
+echo [OK] Ollama + Modelle bereit
+echo.
+
 :: Datenverzeichnis erstellen
 if not exist "%APPDATA%\RPGBrain\lightrag" (
     mkdir "%APPDATA%\RPGBrain\lightrag"
 )
 
-:: LightRAG starten
-lightrag-server --port 9621 --working-dir "%APPDATA%\RPGBrain\lightrag"
+:: LightRAG starten mit Ollama-Modellen
+lightrag-server --port 9621 --working-dir "%APPDATA%\RPGBrain\lightrag" --llm-model qwen3:8b --embedding-model nomic-embed-text
 pause
