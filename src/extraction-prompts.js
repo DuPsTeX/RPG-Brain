@@ -37,6 +37,8 @@ ${knownSection || 'Keine bekannten Entities.'}
 6. Inventar-Änderungen: wenn ein Charakter ein Item erhält oder verliert
 7. Status-Änderungen: HP, Hunger, Durst, Sauberkeit, Erregung wenn beschrieben
 8. Wichtige narrative Infos (Versprechen, Geheimnisse, Pläne) gehören in das "wichtig" Feld
+9. QUESTS: Erkenne auch IMPLIZITE Aufträge, Ziele, Missionen, Versprechen. Wenn jemand sagt "finde X", "bringe Y zu Z", "beschütze A", "besorge B" — das ist eine Quest mit status "aktiv"
+10. RÜCKBLICK: Erstelle IMMER genau einen Rückblick (type: "rueckblick") der die analysierten Nachrichten zusammenfasst. Felder: name (z.B. "Session-Zusammenfassung"), zusammenfassung (2-4 Sätze was passiert ist), wichtige_events (Stichpunkte), beteiligte (Komma-getrennte Namen)
 
 ## Antwort-Format
 Antworte NUR mit einem JSON-Array. Keine Erklärungen, kein Markdown.
@@ -75,6 +77,8 @@ ${knownSection || 'No known entities.'}
 6. Inventory changes: when a character receives or loses an item
 7. Status changes: HP, hunger, thirst, cleanliness, arousal when described
 8. Important narrative info (promises, secrets, plans) belong in the "wichtig" field
+9. QUESTS: Also detect IMPLICIT tasks, goals, missions, promises. If someone says "find X", "bring Y to Z", "protect A", "get B" — that is a quest with status "aktiv"
+10. RECAP: ALWAYS create exactly one recap (type: "rueckblick") summarizing the analyzed messages. Fields: name (e.g. "Session Summary"), zusammenfassung (2-4 sentences of what happened), wichtige_events (bullet points), beteiligte (comma-separated names)
 
 ## Response Format
 Respond ONLY with a JSON array. No explanations, no markdown.
