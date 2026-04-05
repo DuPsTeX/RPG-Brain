@@ -85,15 +85,16 @@ function formatCharaktere(entities) {
     const genderIcon = { 'männlich': '♂', 'weiblich': '♀', 'futa': '⚥' }[d.geschlecht] || '';
     const parts = [`${d.name} [${genderIcon} ${d.rasse || ''} ${d.klasse || ''}]`.trim()];
 
-    // Stats kompakt
+    // Stats kompakt — nur wenn tatsächlich ein Zahlenwert gesetzt ist
     const stats = [];
-    if (d.hp !== undefined) stats.push(`HP: ${d.hp}/100`);
-    if (d.mana !== undefined) stats.push(`Mana: ${d.mana}/100`);
-    if (d.hunger !== undefined) stats.push(`Hunger: ${d.hunger}/100`);
-    if (d.durst !== undefined) stats.push(`Durst: ${d.durst}/100`);
-    if (d.sauberkeit !== undefined) stats.push(`Sauberkeit: ${d.sauberkeit}/100`);
-    if (d.erregung !== undefined) stats.push(`Erregung: ${d.erregung}/100`);
-    if (d.sperma_menge !== undefined && (d.geschlecht === 'männlich' || d.geschlecht === 'futa')) {
+    const hasStat = (v) => v !== undefined && v !== null && v !== '' && !isNaN(v);
+    if (hasStat(d.hp)) stats.push(`HP: ${d.hp}/100`);
+    if (hasStat(d.mana)) stats.push(`Mana: ${d.mana}/100`);
+    if (hasStat(d.hunger)) stats.push(`Hunger: ${d.hunger}/100`);
+    if (hasStat(d.durst)) stats.push(`Durst: ${d.durst}/100`);
+    if (hasStat(d.sauberkeit)) stats.push(`Sauberkeit: ${d.sauberkeit}/100`);
+    if (hasStat(d.erregung)) stats.push(`Erregung: ${d.erregung}/100`);
+    if (hasStat(d.sperma_menge) && (d.geschlecht === 'männlich' || d.geschlecht === 'futa')) {
       stats.push(`Sperma: ${d.sperma_menge}/100`);
     }
     if (stats.length > 0) parts.push(stats.join(' | '));
