@@ -5,6 +5,7 @@ export class LightRAGClient {
     this.baseUrl = baseUrl.replace(/\/+$/, '');
     this.connected = false;
     this.timeout = 10000;
+    this.queryTimeout = 120000; // Queries brauchen länger (LLM-Keyword-Extraktion)
   }
 
   setBaseUrl(url) {
@@ -12,8 +13,10 @@ export class LightRAGClient {
   }
 
   async _fetch(path, options = {}) {
+    const timeout = options._timeout || this.timeout;
+    delete options._timeout;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
       const response = await fetch(`${this.baseUrl}${path}`, {
@@ -63,6 +66,7 @@ export class LightRAGClient {
     const response = await this._fetch('/documents/text', {
       method: 'POST',
       body: JSON.stringify({ text, metadata }),
+      _timeout: this.queryTimeout,
     });
     return response.json();
   }
@@ -77,6 +81,7 @@ export class LightRAGClient {
     const response = await this._fetch('/query', {
       method: 'POST',
       body: JSON.stringify({ query: queryText, mode }),
+      _timeout: this.queryTimeout,
     });
     return response.json();
   }

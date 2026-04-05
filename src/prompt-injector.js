@@ -117,13 +117,21 @@ export class PromptInjector {
       const context = typeof SillyTavern !== 'undefined' ? SillyTavern.getContext() : null;
       const chat = context?.chat;
       if (chat && chat.length > 0) {
-        const recentMessages = chat.slice(-5)
+        const recentMessages = chat.slice(-3)
           .filter(msg => msg.mes && !msg.is_system)
           .map(msg => msg.mes)
           .join(' ');
 
         if (recentMessages.trim() && this.lightrag.connected) {
-          const queryResult = await this.lightrag.query(recentMessages, 'hybrid');
+          // Kurze Query: nur Eigennamen + Schlüsselwörter extrahieren (max 200 Zeichen)
+          // LightRAG muss daraus Keywords extrahieren, lange Texte überfordern kleine LLMs
+          const knownNames = Object.values(this.entityManager.getKnownNames()).flat();
+          const mentionedNames = knownNames.filter(n => recentMessages.toLowerCase().includes(n.toLowerCase()));
+          const queryText = mentionedNames.length > 0
+            ? mentionedNames.join(', ')
+            : recentMessages.slice(0, 200);
+
+          const queryResult = await this.lightrag.query(queryText, 'hybrid');
           if (queryResult?.response) {
             lightragResults = this._extractNamesFromResponse(queryResult.response);
           }
