@@ -169,7 +169,9 @@ async function onChatChanged() {
   promptInjector.prepareInjection().catch(() => {});
 }
 
-async function onGenerateBeforeCombinePrompts() {
+async function onGenerateBeforeCombinePrompts(data) {
+  console.log('[RPG-Brain] GENERATE_BEFORE_COMBINE_PROMPTS gefeuert, isInitialized:', isInitialized);
+
   if (!isInitialized) return;
 
   try {
@@ -180,9 +182,10 @@ async function onGenerateBeforeCombinePrompts() {
       context.setExtensionPrompt(MODULE_NAME, injection, 1, 0);
       const info = promptInjector.getLastInjectionInfo();
       $('#rpg-brain-injection-tokens').text(info.tokens);
-      console.log(`[RPG-Brain] Injection: ${info.tokens} Tokens injiziert`);
+      console.log(`[RPG-Brain] Injection: ${info.tokens} Tokens, ${injection.length} Zeichen injiziert`);
     } else {
       context.setExtensionPrompt(MODULE_NAME, '', 1, 0);
+      console.log('[RPG-Brain] Keine Injection (keine Entities/Sektionen)');
     }
   } catch (err) {
     console.error('[RPG-Brain] Injection-Fehler:', err);
@@ -342,12 +345,10 @@ async function initExtension() {
     eventSource.on(eventTypes.MESSAGE_RECEIVED, onMessageReceived);
     eventSource.on(eventTypes.CHAT_CHANGED, onChatChanged);
 
-    // Prompt injection hook
-    if (eventTypes.GENERATE_BEFORE_COMBINE_PROMPTS) {
-      eventSource.on(eventTypes.GENERATE_BEFORE_COMBINE_PROMPTS, onGenerateBeforeCombinePrompts);
-    }
-
-    console.log('[RPG-Brain] Event-Listener registriert');
+    // Prompt injection hook — nutze String-Event direkt als Fallback
+    const combineEvent = eventTypes.GENERATE_BEFORE_COMBINE_PROMPTS || 'generate_before_combine_prompts';
+    eventSource.on(combineEvent, onGenerateBeforeCombinePrompts);
+    console.log('[RPG-Brain] Event-Listener registriert (injection event:', combineEvent, ')');
   } else {
     console.error('[RPG-Brain] eventSource oder eventTypes nicht verfügbar!');
   }
