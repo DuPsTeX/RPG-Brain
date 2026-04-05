@@ -48,5 +48,10 @@ export LLM_MODEL=qwen2.5:7b
 export EMBEDDING_MODEL=nomic-embed-text
 export EMBEDDING_DIM=768
 
+# Timeouts erhoehen (Ollama braucht Zeit bei lokaler Inferenz)
+export OLLAMA_TIMEOUT=600
+export LLM_FUNC_TIMEOUT=600
+export LLM_WORKER_TIMEOUT=900
+
 # LightRAG starten mit Ollama-Binding
 lightrag-server --port 9621 --working-dir "$DATA_DIR" --llm-binding ollama --embedding-binding ollama
