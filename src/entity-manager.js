@@ -70,6 +70,11 @@ export class EntityManager {
       throw new Error(`Validierungsfehler: ${validation.errors.join(', ')}`);
     }
 
+    // Auto-Name für Beziehungen generieren
+    if (!data.name && typeId === 'beziehung' && data.von && data.zu) {
+      data.name = `${data.von} → ${data.zu}`;
+    }
+
     const entityId = this._generateId();
     const now = Date.now();
 
@@ -115,6 +120,11 @@ export class EntityManager {
     // Daten mergen
     entity.data = { ...entity.data, ...updates };
     entity.updatedAt = Date.now();
+
+    // Auto-Name für Beziehungen nachträglich generieren
+    if (!entity.data.name && entity.typeId === 'beziehung' && entity.data.von && entity.data.zu) {
+      entity.data.name = `${entity.data.von} → ${entity.data.zu}`;
+    }
 
     // Validierung
     const validation = this.registry.validateEntity(entity.typeId, entity.data);
@@ -232,8 +242,14 @@ export class EntityManager {
   findByName(typeId, name) {
     const lowerName = name.toLowerCase();
     for (const [id, entry] of this._entities) {
-      if (entry.typeId === typeId && entry.data.name?.toLowerCase() === lowerName) {
+      if (entry.typeId !== typeId) continue;
+      if (entry.data.name?.toLowerCase() === lowerName) {
         return { id, ...entry };
+      }
+      // Beziehungen auch über "von → zu" matchen
+      if (typeId === 'beziehung' && entry.data.von && entry.data.zu) {
+        const autoName = `${entry.data.von} → ${entry.data.zu}`.toLowerCase();
+        if (autoName === lowerName) return { id, ...entry };
       }
     }
     return null;
