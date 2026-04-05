@@ -145,10 +145,8 @@ async function onMessageReceived(messageIndex) {
   updateStats();
   panel.refresh();
 
-  // Injection für nächsten Generate vorbereiten (LightRAG im Hintergrund)
-  promptInjector.prepareInjection().catch(err =>
-    console.debug('[RPG-Brain] prepareInjection Fehler:', err.message)
-  );
+  // Injection sofort aktualisieren für den nächsten Generate
+  await updateInjection();
 }
 
 async function onChatChanged() {
@@ -165,13 +163,16 @@ async function onChatChanged() {
   extractionTrigger.loadStateForChat();
   updateStats();
 
-  // Injection vorbereiten
-  promptInjector.prepareInjection().catch(() => {});
+  // Injection für neuen Chat aktualisieren
+  await updateInjection();
 }
 
-async function onGenerateBeforeCombinePrompts(data) {
-  console.log('[RPG-Brain] GENERATE_BEFORE_COMBINE_PROMPTS gefeuert, isInitialized:', isInitialized);
-
+/**
+ * Injection aktualisieren und via setExtensionPrompt persistent setzen.
+ * Wird nach jeder relevanten Änderung aufgerufen (Nachricht, Chat-Wechsel, Extraktion).
+ * setExtensionPrompt bleibt bis zur nächsten Änderung aktiv — kein Event nötig.
+ */
+async function updateInjection() {
   if (!isInitialized) return;
 
   try {
@@ -182,10 +183,10 @@ async function onGenerateBeforeCombinePrompts(data) {
       context.setExtensionPrompt(MODULE_NAME, injection, 1, 0);
       const info = promptInjector.getLastInjectionInfo();
       $('#rpg-brain-injection-tokens').text(info.tokens);
-      console.log(`[RPG-Brain] Injection: ${info.tokens} Tokens, ${injection.length} Zeichen injiziert`);
+      console.log(`[RPG-Brain] Injection gesetzt: ${info.tokens} Tokens, ${injection.length} Zeichen`);
     } else {
       context.setExtensionPrompt(MODULE_NAME, '', 1, 0);
-      console.log('[RPG-Brain] Keine Injection (keine Entities/Sektionen)');
+      console.log('[RPG-Brain] Injection leer (keine Entities)');
     }
   } catch (err) {
     console.error('[RPG-Brain] Injection-Fehler:', err);
@@ -288,6 +289,7 @@ function bindSettingsEvents() {
     await extractionTrigger.manualExtract();
     updateStats();
     panel.refresh();
+    await updateInjection();
   });
 
   $(document).on('click', '#rpg-brain-open-dashboard', openDashboard);
@@ -345,10 +347,11 @@ async function initExtension() {
     eventSource.on(eventTypes.MESSAGE_RECEIVED, onMessageReceived);
     eventSource.on(eventTypes.CHAT_CHANGED, onChatChanged);
 
-    // Prompt injection hook — nutze String-Event direkt als Fallback
+    // Prompt injection: setExtensionPrompt wird proaktiv gesetzt (nach Nachricht/Chat-Wechsel)
+    // Zusätzlich als Backup beim Generate-Event
     const combineEvent = eventTypes.GENERATE_BEFORE_COMBINE_PROMPTS || 'generate_before_combine_prompts';
-    eventSource.on(combineEvent, onGenerateBeforeCombinePrompts);
-    console.log('[RPG-Brain] Event-Listener registriert (injection event:', combineEvent, ')');
+    eventSource.on(combineEvent, () => updateInjection());
+    console.log('[RPG-Brain] Event-Listener registriert');
   } else {
     console.error('[RPG-Brain] eventSource oder eventTypes nicht verfügbar!');
   }
@@ -376,6 +379,11 @@ async function initExtension() {
 
   isInitialized = true;
   console.log('[RPG-Brain] Extension initialisiert für Chat:', currentChatId || '(kein Chat offen)');
+
+  // Initiale Injection setzen
+  if (currentChatId) {
+    await updateInjection();
+  }
 }
 
 // Log extension errors
