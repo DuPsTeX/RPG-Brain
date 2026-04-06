@@ -30,9 +30,9 @@ if ! ollama list 2>/dev/null | grep -qi "nomic-embed-text"; then
     ollama pull nomic-embed-text
 fi
 
-if ! ollama list 2>/dev/null | grep -qi "qwen2.5:7b"; then
-    echo "[INFO] Lade LLM-Modell: qwen2.5:7b ..."
-    ollama pull qwen2.5:7b
+if ! ollama list 2>/dev/null | grep -qi "qwen2.5:3b"; then
+    echo "[INFO] Lade LLM-Modell: qwen2.5:3b ..."
+    ollama pull qwen2.5:3b
 fi
 
 echo ""
@@ -44,7 +44,7 @@ DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/rpg-brain/lightrag"
 mkdir -p "$DATA_DIR"
 
 # Ollama-Modelle per Umgebungsvariablen setzen
-export LLM_MODEL=qwen2.5:7b
+export LLM_MODEL=qwen2.5:3b
 export EMBEDDING_MODEL=nomic-embed-text
 export EMBEDDING_DIM=768
 

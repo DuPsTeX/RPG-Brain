@@ -38,10 +38,10 @@ if %errorlevel% neq 0 (
     ollama pull nomic-embed-text
 )
 
-ollama list 2>nul | findstr /i "qwen2.5:7b" >nul
+ollama list 2>nul | findstr /i "qwen2.5:3b" >nul
 if %errorlevel% neq 0 (
-    echo [INFO] Lade LLM-Modell: qwen2.5:7b ...
-    ollama pull qwen2.5:7b
+    echo [INFO] Lade LLM-Modell: qwen2.5:3b ...
+    ollama pull qwen2.5:3b
 )
 
 echo.
@@ -54,7 +54,7 @@ if not exist "%APPDATA%\RPGBrain\lightrag" (
 )
 
 :: Ollama-Modelle per Umgebungsvariablen setzen
-set LLM_MODEL=qwen2.5:7b
+set LLM_MODEL=qwen2.5:3b
 set EMBEDDING_MODEL=nomic-embed-text
 set EMBEDDING_DIM=768
 
