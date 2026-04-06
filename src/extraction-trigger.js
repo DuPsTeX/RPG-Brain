@@ -141,11 +141,24 @@ export class ExtractionTrigger {
       }
 
       // Roh-Text auch an LightRAG für Graph-Enrichment senden
+      // Einzelne Nachrichten separat schicken (statt eines großen Blocks)
+      // Verhindert Timeouts bei lokaler Ollama-Inferenz
       try {
-        await this.lightrag.insertDocument(messageText, {
-          rpg_type: '_chat_messages',
-          message_range: `${startIndex}-${chat.length - 1}`,
-        });
+        const singleMessages = messages
+          .filter(msg => msg.mes && !msg.is_system)
+          .map(msg => {
+            const sender = msg.is_user ? 'User' : (msg.name || 'Character');
+            return `[${sender}]: ${msg.mes}`;
+          });
+
+        for (const singleMsg of singleMessages) {
+          // Max 1500 Zeichen pro Dokument — kürzen wenn nötig
+          const trimmed = singleMsg.length > 1500 ? singleMsg.slice(0, 1500) + '...' : singleMsg;
+          await this.lightrag.insertDocument(trimmed, {
+            rpg_type: '_chat_message',
+            message_range: `${startIndex}-${chat.length - 1}`,
+          });
+        }
       } catch (err) {
         console.warn('[RPG-Brain] LightRAG Chat-Insert fehlgeschlagen:', err.message);
       }

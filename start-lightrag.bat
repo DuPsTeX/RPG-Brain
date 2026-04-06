@@ -58,10 +58,9 @@ set LLM_MODEL=qwen2.5:7b
 set EMBEDDING_MODEL=nomic-embed-text
 set EMBEDDING_DIM=768
 
-:: Timeouts erhoehen (Ollama braucht Zeit bei lokaler Inferenz)
-set OLLAMA_TIMEOUT=600
-set LLM_FUNC_TIMEOUT=600
-set LLM_WORKER_TIMEOUT=900
+:: Kleinere Chunks damit Ollama nicht in Timeouts laeuft
+set LIGHTRAG_CHUNK_SIZE=512
+set LIGHTRAG_CHUNK_OVERLAP_SIZE=64
 
 :: LightRAG starten mit Ollama-Binding
 lightrag-server --port 9621 --working-dir "%APPDATA%\RPGBrain\lightrag" --llm-binding ollama --embedding-binding ollama
