@@ -641,3 +641,40 @@
 .rpg-brain-panel-content::-webkit-scrollbar-thumb:hover {
   background: rgba(255,255,255,0.25);
 }
+
+/* --- Scene Tracking --- */
+
+.rpg-brain-scene-info {
+  background: linear-gradient(135deg, rgba(78, 204, 163, 0.15), rgba(0, 210, 255, 0.1));
+  border: 1px solid rgba(78, 204, 163, 0.3);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.rpg-brain-scene-location {
+  font-size: 1.1em;
+  font-weight: bold;
+  color: #4ecca3;
+  margin-bottom: 4px;
+}
+
+.rpg-brain-scene-present {
+  font-size: 0.85em;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Charakter in der Szene */
+.rpg-brain-in-scene {
+  border-left: 3px solid #4ecca3;
+}
+
+/* Charakter nicht anwesend */
+.rpg-brain-absent {
+  opacity: 0.6;
+  border-left: 3px solid rgba(255, 255, 255, 0.15);
+}
+
+.rpg-brain-absent:hover {
+  opacity: 0.85;
+}

@@ -6,10 +6,11 @@ import { renderEntityCard } from './components/entity-card.js';
 import { renderEntityForm } from './components/entity-form.js';
 
 export class Tabs {
-  constructor(entityManager, registry, promptInjector) {
+  constructor(entityManager, registry, promptInjector, sceneTracker) {
     this.entityManager = entityManager;
     this.registry = registry;
     this.promptInjector = promptInjector;
+    this.sceneTracker = sceneTracker;
   }
 
   /**
@@ -33,20 +34,51 @@ export class Tabs {
   // --- Szene Tab ---
 
   _renderSzene(container) {
-    // Ort
-    const orte = this.entityManager.getEntitiesByType('ort');
-    if (orte.length > 0) {
-      container.append(this._sectionHeader('📍', 'Aktueller Ort'));
-      container.append(renderEntityCard(orte[orte.length - 1], this.registry.getType('ort')));
+    const scene = this.sceneTracker?.getCurrentScene();
+    const anwesendeLower = (scene?.anwesende || []).map(n => n.toLowerCase());
+
+    // Szene-Info Header
+    if (scene?.ort) {
+      container.append(`
+        <div class="rpg-brain-scene-info">
+          <div class="rpg-brain-scene-location">📍 ${scene.ort}</div>
+          <div class="rpg-brain-scene-present">👥 ${scene.anwesende.join(', ') || 'Niemand erkannt'}</div>
+        </div>
+      `);
     }
 
-    // Aktive Charaktere (die letzten/relevantesten)
+    // Aktueller Ort (passend zur Szene)
+    const orte = this.entityManager.getEntitiesByType('ort');
+    if (orte.length > 0) {
+      let currentOrt = orte[orte.length - 1];
+      if (scene?.ort) {
+        const matched = orte.find(o =>
+          o.data.name?.toLowerCase().includes(scene.ort.toLowerCase()) ||
+          scene.ort.toLowerCase().includes(o.data.name?.toLowerCase())
+        );
+        if (matched) currentOrt = matched;
+      }
+      container.append(this._sectionHeader('📍', 'Aktueller Ort'));
+      container.append(renderEntityCard(currentOrt, this.registry.getType('ort')));
+    }
+
+    // Charaktere: Anwesende zuerst, markiert
     const chars = this.entityManager.getEntitiesByType('charakter');
     if (chars.length > 0) {
-      container.append(this._sectionHeader('🧙', 'Charaktere in Szene'));
-      const recentChars = chars.slice(-5); // Letzte 5
-      for (const char of recentChars) {
-        container.append(renderCharacterCard(char));
+      const presentChars = chars.filter(c => anwesendeLower.includes(c.data.name?.toLowerCase()));
+      const absentChars = chars.filter(c => !anwesendeLower.includes(c.data.name?.toLowerCase()));
+
+      if (presentChars.length > 0) {
+        container.append(this._sectionHeader('🧙', `In der Szene (${presentChars.length})`));
+        for (const char of presentChars) {
+          container.append(renderCharacterCard(char, true));
+        }
+      }
+      if (absentChars.length > 0) {
+        container.append(this._sectionHeader('👤', `Nicht anwesend (${absentChars.length})`));
+        for (const char of absentChars) {
+          container.append(renderCharacterCard(char, false));
+        }
       }
     }
 
@@ -60,9 +92,22 @@ export class Tabs {
       }
     }
 
-    // Beziehungen
+    // Beziehungen: Nur zwischen anwesenden Charakteren
     const beziehungen = this.entityManager.getEntitiesByType('beziehung');
-    if (beziehungen.length > 0) {
+    if (beziehungen.length > 0 && anwesendeLower.length > 0) {
+      const relevantBez = beziehungen.filter(b => {
+        const von = b.data.von?.toLowerCase() || '';
+        const zu = b.data.zu?.toLowerCase() || '';
+        return anwesendeLower.includes(von) || anwesendeLower.includes(zu);
+      });
+      if (relevantBez.length > 0) {
+        container.append(this._sectionHeader('🕸️', `Beziehungen (${relevantBez.length})`));
+        for (const bez of relevantBez) {
+          container.append(renderEntityCard(bez, this.registry.getType('beziehung')));
+        }
+      }
+    } else if (beziehungen.length > 0) {
+      // Fallback: Alle zeigen wenn kein Szene-Tracking
       container.append(this._sectionHeader('🕸️', 'Beziehungen'));
       for (const bez of beziehungen.slice(-6)) {
         container.append(renderEntityCard(bez, this.registry.getType('beziehung')));

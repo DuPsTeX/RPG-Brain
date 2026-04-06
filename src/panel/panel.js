@@ -9,12 +9,14 @@ export class RPGBrainPanel {
    * @param {EntityTypeRegistry} registry
    * @param {PromptInjector} promptInjector
    * @param {LightRAGClient} lightrag
+   * @param {SceneTracker} sceneTracker
    */
-  constructor(entityManager, registry, promptInjector, lightrag) {
+  constructor(entityManager, registry, promptInjector, lightrag, sceneTracker) {
     this.entityManager = entityManager;
     this.registry = registry;
     this.promptInjector = promptInjector;
     this.lightrag = lightrag;
+    this.sceneTracker = sceneTracker;
     this.tabs = null;
     this._isOpen = false;
     this._onEntityChange = null;
@@ -68,7 +70,7 @@ export class RPGBrainPanel {
     $('body').append(panelHtml);
 
     // Tabs initialisieren
-    this.tabs = new Tabs(this.entityManager, this.registry, this.promptInjector);
+    this.tabs = new Tabs(this.entityManager, this.registry, this.promptInjector, this.sceneTracker);
 
     // Events binden
     this._bindEvents();

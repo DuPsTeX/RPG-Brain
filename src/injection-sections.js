@@ -77,17 +77,20 @@ function formatRueckblick(entities) {
   return `📖 RÜCKBLICK:\n${latest.data.zusammenfassung || latest.data.name}`;
 }
 
-function formatCharaktere(entities) {
+function formatCharaktere(entities, scene) {
   if (entities.length === 0) return '';
+
+  const hasStat = (v) => v !== undefined && v !== null && v !== '' && !isNaN(v);
+  const anwesendeLower = (scene?.anwesende || []).map(n => n.toLowerCase());
 
   const lines = entities.map(e => {
     const d = e.data;
     const genderIcon = { 'männlich': '♂', 'weiblich': '♀', 'futa': '⚥' }[d.geschlecht] || '';
+    const isInScene = anwesendeLower.includes(d.name?.toLowerCase());
     const parts = [`${d.name} [${genderIcon} ${d.rasse || ''} ${d.klasse || ''}]`.trim()];
 
     // Stats kompakt — nur wenn tatsächlich ein Zahlenwert gesetzt ist
     const stats = [];
-    const hasStat = (v) => v !== undefined && v !== null && v !== '' && !isNaN(v);
     if (hasStat(d.hp)) stats.push(`HP: ${d.hp}/100`);
     if (hasStat(d.mana)) stats.push(`Mana: ${d.mana}/100`);
     if (hasStat(d.hunger)) stats.push(`Hunger: ${d.hunger}/100`);
@@ -99,7 +102,15 @@ function formatCharaktere(entities) {
     }
     if (stats.length > 0) parts.push(stats.join(' | '));
 
-    if (d.inventar) parts.push(`Inventar: ${d.inventar}`);
+    // Erweiterte Details NUR für anwesende Charaktere
+    if (isInScene) {
+      if (d.aussehen) parts.push(`Aussehen: ${d.aussehen}`);
+      if (d.persoenlichkeit) parts.push(`Persönlichkeit: ${d.persoenlichkeit}`);
+      if (d.inventar) parts.push(`Inventar: ${d.inventar}`);
+      if (d.wichtig) parts.push(`Wichtig: ${d.wichtig}`);
+    } else {
+      if (d.inventar) parts.push(`Inventar: ${d.inventar}`);
+    }
 
     return parts.join('\n  ');
   });
@@ -132,13 +143,22 @@ function formatQuests(entities) {
   return `📜 AKTIVE QUESTS:\n${lines.join('\n')}`;
 }
 
-function formatOrte(entities) {
+function formatOrte(entities, scene) {
   if (entities.length === 0) return '';
 
-  // Neuesten/relevantesten Ort nehmen
-  const ort = entities[0];
+  // Szene-Ort priorisieren wenn vorhanden
+  let ort = entities[0];
+  if (scene?.ort) {
+    const sceneOrt = entities.find(e =>
+      e.data.name?.toLowerCase().includes(scene.ort.toLowerCase()) ||
+      scene.ort.toLowerCase().includes(e.data.name?.toLowerCase())
+    );
+    if (sceneOrt) ort = sceneOrt;
+  }
+
   const d = ort.data;
   let text = `📍 AKTUELLER ORT: ${d.name}`;
+  if (d.typ) text += ` (${d.typ})`;
   if (d.beschreibung) text += ` — ${d.beschreibung}`;
   if (d.npcs) text += `\n  → NPCs hier: ${d.npcs}`;
   if (d.events) text += `\n  → Geschehen: ${d.events}`;

@@ -3,9 +3,10 @@
 /**
  * Rendert eine Charakter-Card mit Portrait, Stats-Balken, Wichtig-Box und Inventar.
  * @param {object} entity - { id, typeId, data }
+ * @param {boolean} inScene - Ob der Charakter in der aktuellen Szene anwesend ist
  * @returns {string} HTML
  */
-export function renderCharacterCard(entity) {
+export function renderCharacterCard(entity, inScene = true) {
   const d = entity.data;
   const id = entity.id;
 
@@ -52,7 +53,7 @@ export function renderCharacterCard(entity) {
     : '';
 
   return `
-    <div class="rpg-brain-card rpg-brain-char-card" data-entity-id="${id}">
+    <div class="rpg-brain-card rpg-brain-char-card${inScene ? ' rpg-brain-in-scene' : ' rpg-brain-absent'}" data-entity-id="${id}">
       <div class="rpg-brain-char-header">
         ${portrait}
         <div class="rpg-brain-char-info">

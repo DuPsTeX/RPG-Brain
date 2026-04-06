@@ -1,5 +1,6 @@
 // prompt-injector.js — Smart Retrieval + Priority-basierte Prompt Injection
 // Baut den RPG-Kontext auf der vor jeder LLM-Antwort injiziert wird
+// Nutzt Scene Tracker für szene-basierte Filterung
 
 import { InjectionSectionsManager } from './injection-sections.js';
 
@@ -9,11 +10,13 @@ export class PromptInjector {
    * @param {LightRAGClient} lightragClient
    * @param {Function} getSettings
    * @param {Function} saveSettings
+   * @param {SceneTracker} sceneTracker
    */
-  constructor(entityManager, lightragClient, getSettings, saveSettings) {
+  constructor(entityManager, lightragClient, getSettings, saveSettings, sceneTracker) {
     this.entityManager = entityManager;
     this.lightrag = lightragClient;
     this._getSettings = getSettings;
+    this.sceneTracker = sceneTracker;
     this.sectionsManager = new InjectionSectionsManager(getSettings, saveSettings);
 
     this._lastInjection = '';
@@ -26,8 +29,7 @@ export class PromptInjector {
 
   /**
    * Baut die vollständige Injection für den aktuellen Kontext.
-   * Wird proaktiv aufgerufen (nach Nachricht, Chat-Wechsel etc.)
-   * und setzt dann via setExtensionPrompt den Kontext persistent.
+   * Filtert nach aktueller Szene (anwesende Charaktere, Ort, aktive Quests).
    *
    * @returns {Promise<string>} Der formatierte Injection-Text
    */
@@ -38,8 +40,11 @@ export class PromptInjector {
     // Alle aktiven Sektionen holen (sortiert nach Priorität)
     const sections = this.sectionsManager.getAllSections(true);
 
-    // Relevante Entities ermitteln (inkl. LightRAG wenn verfügbar)
+    // Relevante Entities ermitteln (inkl. LightRAG + Szene-Filter)
     const relevantEntities = await this._getRelevantEntities();
+
+    // Aktuelle Szene für Header-Info
+    const scene = this.sceneTracker?.getCurrentScene();
 
     // Sektionen aufbauen, Token-Budget beachten
     const parts = [];
@@ -47,15 +52,22 @@ export class PromptInjector {
     const headerLine = '🧠 [RPG-Brain Kontext]';
     estimatedTokens += this._estimateTokens(headerLine);
 
+    // Szene-Info als erstes (wenn verfügbar)
+    if (scene?.ort) {
+      const sceneLine = `📍 Aktuelle Szene: ${scene.ort} | Anwesend: ${scene.anwesende.join(', ') || 'unbekannt'}`;
+      parts.push(sceneLine);
+      estimatedTokens += this._estimateTokens(sceneLine);
+    }
+
     for (const section of sections) {
-      // Entities für diese Sektion filtern
-      const sectionEntities = this._filterEntitiesForSection(section, relevantEntities);
+      // Entities für diese Sektion filtern (szene-bewusst)
+      const sectionEntities = this._filterEntitiesForSection(section, relevantEntities, scene);
       if (sectionEntities.length === 0) continue;
 
       // Sektion formatieren
       let sectionText;
       try {
-        sectionText = section.format(sectionEntities);
+        sectionText = section.format(sectionEntities, scene);
       } catch (err) {
         console.warn(`[RPG-Brain] Format-Fehler in Sektion "${section.name}":`, err.message);
         continue;
@@ -106,10 +118,11 @@ export class PromptInjector {
 
   /**
    * Relevante Entities ermitteln.
-   * Kombiniert: lokale Entities + LightRAG-Query basierend auf letzten Nachrichten.
+   * Priorisiert szene-anwesende Entities, dann LightRAG-Relevanz.
    */
   async _getRelevantEntities() {
     const allEntities = this.entityManager.getAllEntities();
+    const scene = this.sceneTracker?.getCurrentScene();
 
     // LightRAG-Query für Relevanz-Scoring
     let lightragResults = [];
@@ -123,8 +136,6 @@ export class PromptInjector {
           .join(' ');
 
         if (recentMessages.trim() && this.lightrag.connected) {
-          // Kurze Query: nur Eigennamen + Schlüsselwörter extrahieren (max 200 Zeichen)
-          // LightRAG muss daraus Keywords extrahieren, lange Texte überfordern kleine LLMs
           const knownNames = Object.values(this.entityManager.getKnownNames()).flat();
           const mentionedNames = knownNames.filter(n => recentMessages.toLowerCase().includes(n.toLowerCase()));
           const queryText = mentionedNames.length > 0
@@ -141,11 +152,44 @@ export class PromptInjector {
       console.debug('[RPG-Brain] LightRAG-Query fehlgeschlagen:', err.message);
     }
 
-    // Entities priorisieren basierend auf LightRAG-Relevanz
+    // Entities priorisieren: Szene > LightRAG > Aktualität
     const scored = allEntities.map(entity => {
-      let score = 1; // Basis-Score
+      let score = 0; // Basis-Score 0 (nicht in Szene = niedrig)
 
-      // Boost wenn in LightRAG-Ergebnissen erwähnt
+      // Szene-Bewusstsein: Höchste Priorität
+      if (scene && scene.anwesende.length > 0) {
+        const name = entity.data.name?.toLowerCase() || '';
+
+        if (entity.typeId === 'charakter') {
+          // Charakter in Szene? → Großer Boost
+          if (scene.anwesende.some(n => n.toLowerCase() === name)) {
+            score += 10;
+          }
+        } else if (entity.typeId === 'beziehung') {
+          // Beziehung nur relevant wenn mindestens eine Person anwesend
+          const von = entity.data.von?.toLowerCase() || '';
+          const zu = entity.data.zu?.toLowerCase() || '';
+          const anwesendeLower = scene.anwesende.map(n => n.toLowerCase());
+          if (anwesendeLower.includes(von) || anwesendeLower.includes(zu)) {
+            score += 8;
+          }
+        } else if (entity.typeId === 'ort') {
+          // Ort nur relevant wenn aktueller Szene-Ort
+          if (scene.ort && name.includes(scene.ort.toLowerCase())) {
+            score += 8;
+          } else if (scene.ort && scene.ort.toLowerCase().includes(name)) {
+            score += 8;
+          }
+        } else {
+          // Andere Typen: Basis-Score
+          score += 1;
+        }
+      } else {
+        // Kein Szene-Tracking → alte Logik (alles Basis 1)
+        score = 1;
+      }
+
+      // LightRAG-Boost
       if (entity.data.name && lightragResults.some(n =>
         n.toLowerCase().includes(entity.data.name.toLowerCase()) ||
         entity.data.name.toLowerCase().includes(n.toLowerCase())
@@ -179,12 +223,28 @@ export class PromptInjector {
 
   /**
    * Entities für eine bestimmte Sektion filtern.
+   * Szene-bewusst: Charaktere/Beziehungen nur wenn in der Szene.
    */
-  _filterEntitiesForSection(section, entities) {
-    if (!section.entityTypes || section.entityTypes.length === 0) {
-      return entities;
+  _filterEntitiesForSection(section, entities, scene) {
+    let filtered = entities;
+
+    // Typ-Filter
+    if (section.entityTypes && section.entityTypes.length > 0) {
+      filtered = filtered.filter(e => section.entityTypes.includes(e.typeId));
     }
-    return entities.filter(e => section.entityTypes.includes(e.typeId));
+
+    // Szene-Filter: Nur Entities mit positivem Score (in der Szene oder relevant)
+    if (scene && scene.anwesende.length > 0) {
+      const sceneTypes = ['charakter', 'beziehung', 'ort'];
+      filtered = filtered.filter(e => {
+        if (sceneTypes.includes(e.typeId)) {
+          return e._score > 0;
+        }
+        return true; // Quests, Rückblicke etc. nicht filtern
+      });
+    }
+
+    return filtered;
   }
 
   /**
@@ -192,7 +252,6 @@ export class PromptInjector {
    */
   _extractNamesFromResponse(response) {
     if (typeof response !== 'string') return [];
-    // Einfache Heuristik: Wörter mit Großbuchstaben am Anfang
     const words = response.match(/\b[A-ZÄÖÜ][a-zäöüß]{2,}/g) || [];
     return [...new Set(words)];
   }
@@ -212,7 +271,6 @@ export class PromptInjector {
     const maxChars = maxTokens * 4;
     if (text.length <= maxChars) return text;
 
-    // Am letzten Zeilenumbruch vor dem Limit abschneiden
     const truncated = text.slice(0, maxChars);
     const lastNewline = truncated.lastIndexOf('\n');
     if (lastNewline > maxChars * 0.5) {

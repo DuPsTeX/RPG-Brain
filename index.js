@@ -6,6 +6,7 @@ import { EntityTypeRegistry } from './src/entity-registry.js';
 import { EntityManager } from './src/entity-manager.js';
 import { ExtractionTrigger } from './src/extraction-trigger.js';
 import { PromptInjector } from './src/prompt-injector.js';
+import { SceneTracker } from './src/scene-tracker.js';
 import { RPGBrainPanel } from './src/panel/panel.js';
 import { initI18n, setLocale } from './src/i18n/i18n-loader.js';
 
@@ -14,11 +15,12 @@ const lightrag = new LightRAGClient();
 const registry = new EntityTypeRegistry(() => getSettings(), () => saveSettings());
 const entityManager = new EntityManager(registry, lightrag);
 const extractionTrigger = new ExtractionTrigger(registry, entityManager, lightrag, () => getSettings());
-const promptInjector = new PromptInjector(entityManager, lightrag, () => getSettings(), () => saveSettings());
-const panel = new RPGBrainPanel(entityManager, registry, promptInjector, lightrag);
+const sceneTracker = new SceneTracker(entityManager, () => getSettings());
+const promptInjector = new PromptInjector(entityManager, lightrag, () => getSettings(), () => saveSettings(), sceneTracker);
+const panel = new RPGBrainPanel(entityManager, registry, promptInjector, lightrag, sceneTracker);
 
 // Globaler Zugriff für Console-Tests und andere Module
-window.rpgBrain = { lightrag, registry, entityManager, extractionTrigger, promptInjector, panel };
+window.rpgBrain = { lightrag, registry, entityManager, extractionTrigger, promptInjector, sceneTracker, panel };
 
 let currentChatId = null;
 let isInitialized = false;
@@ -141,11 +143,30 @@ async function onMessageReceived(messageIndex) {
   if (!message) return;
 
   console.log('[RPG-Brain] Nachricht empfangen:', messageIndex);
+
+  // Szene-Analyse (leichtgewichtig, jede Nachricht)
+  await sceneTracker.onMessageReceived(messageIndex);
+
+  // Extraktion (nur alle X Nachrichten)
   await extractionTrigger.onMessageReceived(messageIndex);
   updateStats();
   panel.refresh();
 
   // Injection sofort aktualisieren für den nächsten Generate
+  await updateInjection();
+}
+
+async function onMessageDeleted(remainingCount) {
+  if (!isInitialized) return;
+
+  console.log('[RPG-Brain] Nachricht gelöscht, verbleibend:', remainingCount);
+
+  // Szene auf vorherigen Stand zurücksetzen
+  sceneTracker.onMessageDeleted(remainingCount);
+
+  // Injection aktualisieren
+  updateStats();
+  panel.refresh();
   await updateInjection();
 }
 
@@ -158,9 +179,10 @@ async function onChatChanged() {
   currentChatId = newChatId;
   console.log('[RPG-Brain] Chat gewechselt:', currentChatId);
 
-  // Entity-Index + Extraktions-State für den neuen Chat laden
+  // Entity-Index + Extraktions-State + Szene für den neuen Chat laden
   entityManager.loadForChat(currentChatId);
   extractionTrigger.loadStateForChat();
+  sceneTracker.loadStateForChat();
   updateStats();
 
   // Injection für neuen Chat aktualisieren
@@ -337,6 +359,7 @@ async function initExtension() {
   if (currentChatId) {
     entityManager.loadForChat(currentChatId);
     extractionTrigger.loadStateForChat();
+    sceneTracker.loadStateForChat();
   }
 
   // Register ST event listeners
@@ -345,13 +368,14 @@ async function initExtension() {
 
   if (eventSource && eventTypes) {
     eventSource.on(eventTypes.MESSAGE_RECEIVED, onMessageReceived);
+    eventSource.on(eventTypes.MESSAGE_DELETED, onMessageDeleted);
     eventSource.on(eventTypes.CHAT_CHANGED, onChatChanged);
 
     // Prompt injection: setExtensionPrompt wird proaktiv gesetzt (nach Nachricht/Chat-Wechsel)
     // Zusätzlich als Backup beim Generate-Event
     const combineEvent = eventTypes.GENERATE_BEFORE_COMBINE_PROMPTS || 'generate_before_combine_prompts';
     eventSource.on(combineEvent, () => updateInjection());
-    console.log('[RPG-Brain] Event-Listener registriert');
+    console.log('[RPG-Brain] Event-Listener registriert (inkl. Scene-Tracking)');
   } else {
     console.error('[RPG-Brain] eventSource oder eventTypes nicht verfügbar!');
   }
