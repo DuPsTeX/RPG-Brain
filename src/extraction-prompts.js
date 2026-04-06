@@ -8,18 +8,20 @@
  * @param {string} typeSchemas - Kompakte Schema-Beschreibung (von registry.getTypeSchemasForPrompt())
  * @param {object} knownNames - Bekannte Entity-Namen pro Typ (von entityManager.getKnownNames())
  * @param {string} language - 'de' oder 'en'
+ * @param {Array} activeTypes - Array von {id, name, icon} für dynamische Typ-Regeln
  * @returns {string} Der vollständige Extraktions-Prompt
  */
-export function buildExtractionPrompt(messageText, typeSchemas, knownNames, language = 'de') {
+export function buildExtractionPrompt(messageText, typeSchemas, knownNames, language = 'de', activeTypes = []) {
   const knownSection = formatKnownNames(knownNames);
+  const typeReminder = buildTypeReminder(activeTypes, language);
 
   if (language === 'en') {
-    return buildEnglishPrompt(messageText, typeSchemas, knownSection);
+    return buildEnglishPrompt(messageText, typeSchemas, knownSection, typeReminder);
   }
-  return buildGermanPrompt(messageText, typeSchemas, knownSection);
+  return buildGermanPrompt(messageText, typeSchemas, knownSection, typeReminder);
 }
 
-function buildGermanPrompt(messageText, typeSchemas, knownSection) {
+function buildGermanPrompt(messageText, typeSchemas, knownSection, typeReminder) {
   return `Du bist ein RPG-Analyse-System. Analysiere den folgenden Chat-Text und extrahiere alle relevanten RPG-Entities.
 
 ## Verfügbare Entity-Typen
@@ -37,12 +39,13 @@ ${knownSection || 'Keine bekannten Entities.'}
 6. Inventar-Änderungen: wenn ein Charakter ein Item erhält oder verliert
 7. Status-Änderungen: HP, Hunger, Durst, Sauberkeit, Erregung wenn beschrieben
 8. Wichtige narrative Infos (Versprechen, Geheimnisse, Pläne) gehören in das "wichtig" Feld
-9. QUESTS: Erkenne auch IMPLIZITE Aufträge, Ziele, Missionen, Versprechen. Wenn jemand sagt "finde X", "bringe Y zu Z", "beschütze A", "besorge B" — das ist eine Quest mit status "aktiv"
-10. RÜCKBLICK: Erstelle IMMER genau einen Rückblick (type: "rueckblick") der die analysierten Nachrichten zusammenfasst. Felder: name (z.B. "Session-Zusammenfassung"), zusammenfassung (2-4 Sätze was passiert ist), wichtige_events (Stichpunkte), beteiligte (Komma-getrennte Namen)
-11. ITEMS: Erstelle für JEDES erwähnte Objekt, jede Waffe, Rüstung, Trank, Nahrung, Schlüssel, Werkzeug oder magischen Gegenstand eine eigene Item-Entity (type: "item"). Felder: name, typ (Waffe/Rüstung/Trank/etc.), besitzer (wer hat es), beschreibung, eigenschaften
-12. GESCHÄFTE: Erkenne Läden, Händler, Marktplätze, Tavernen oder andere Orte an denen gehandelt wird als Geschäft-Entity (type: "geschaeft"). Felder: name, ort, haendler, waren, preise
-13. ORTE: Erkenne JEDEN neuen Ort der betreten oder beschrieben wird (type: "ort"). Räume, Gebäude, Städte, Dungeons — alles.
-14. NUTZE ALLE VERFÜGBAREN TYPEN! Nicht nur Charakter und Beziehung. Prüfe jeden Typ ob er passt.
+9. QUESTS: Erkenne auch IMPLIZITE Aufträge, Ziele, Missionen, Versprechen
+10. RÜCKBLICK: Erstelle IMMER genau einen Rückblick (type: "rueckblick") der die analysierten Nachrichten zusammenfasst
+
+## WICHTIG: Nutze ALLE Entity-Typen!
+Prüfe für JEDEN der folgenden Typen ob er in den Nachrichten vorkommt:
+${typeReminder}
+Ignoriere KEINEN Typ! Jeder erwähnte Gegenstand, Ort, NPC, Quest etc. muss als Entity erfasst werden.
 
 ## Antwort-Format
 Antworte NUR mit einem JSON-Array. Keine Erklärungen, kein Markdown.
@@ -63,7 +66,7 @@ Falls keine Entities erkannt werden, antworte mit: []
 ${messageText}`;
 }
 
-function buildEnglishPrompt(messageText, typeSchemas, knownSection) {
+function buildEnglishPrompt(messageText, typeSchemas, knownSection, typeReminder) {
   return `You are an RPG analysis system. Analyze the following chat text and extract all relevant RPG entities.
 
 ## Available Entity Types
@@ -81,12 +84,13 @@ ${knownSection || 'No known entities.'}
 6. Inventory changes: when a character receives or loses an item
 7. Status changes: HP, hunger, thirst, cleanliness, arousal when described
 8. Important narrative info (promises, secrets, plans) belong in the "wichtig" field
-9. QUESTS: Also detect IMPLICIT tasks, goals, missions, promises. If someone says "find X", "bring Y to Z", "protect A", "get B" — that is a quest with status "aktiv"
-10. RECAP: ALWAYS create exactly one recap (type: "rueckblick") summarizing the analyzed messages. Fields: name (e.g. "Session Summary"), zusammenfassung (2-4 sentences of what happened), wichtige_events (bullet points), beteiligte (comma-separated names)
-11. ITEMS: Create an item entity (type: "item") for EVERY mentioned weapon, armor, potion, food, key, tool, or magical object. Fields: name, typ (Waffe/Rüstung/Trank/etc.), besitzer (owner), beschreibung, eigenschaften
-12. SHOPS: Detect shops, merchants, marketplaces, taverns or other trade locations as geschaeft entities (type: "geschaeft"). Fields: name, ort, haendler, waren, preise
-13. LOCATIONS: Detect EVERY new location entered or described (type: "ort"). Rooms, buildings, cities, dungeons — everything.
-14. USE ALL AVAILABLE TYPES! Not just character and relationship. Check every type if it fits.
+9. QUESTS: Also detect IMPLICIT tasks, goals, missions, promises
+10. RECAP: ALWAYS create exactly one recap (type: "rueckblick") summarizing the analyzed messages
+
+## IMPORTANT: Use ALL entity types!
+Check for EACH of the following types whether it appears in the messages:
+${typeReminder}
+Do NOT ignore any type! Every mentioned object, location, NPC, quest etc. must be captured as an entity.
 
 ## Response Format
 Respond ONLY with a JSON array. No explanations, no markdown.
@@ -105,6 +109,36 @@ If no entities are detected, respond with: []
 
 ## Chat Text to Analyze
 ${messageText}`;
+}
+
+/**
+ * Baut einen dynamischen Reminder für alle aktiven Entity-Typen.
+ * Damit das LLM keinen Typ vergisst.
+ */
+function buildTypeReminder(activeTypes, language) {
+  if (!activeTypes || activeTypes.length === 0) return '';
+
+  // Beschreibungen pro Typ (was das LLM suchen soll)
+  const typeHints = {
+    charakter: { de: 'Jede Person, NPC, Kreatur mit Namen', en: 'Any person, NPC, creature with a name' },
+    beziehung: { de: 'Wie Charaktere zueinander stehen (Freund, Feind, Romanze...)', en: 'How characters relate to each other (friend, enemy, romance...)' },
+    ort: { de: 'Jeder Ort: Stadt, Raum, Gebäude, Wald, Dungeon...', en: 'Any location: city, room, building, forest, dungeon...' },
+    quest: { de: 'Aufgaben, Ziele, Missionen, Versprechen', en: 'Tasks, goals, missions, promises' },
+    item: { de: 'Waffen, Rüstungen, Tränke, Schlüssel, Werkzeuge, magische Gegenstände', en: 'Weapons, armor, potions, keys, tools, magical objects' },
+    event: { de: 'Wichtige Ereignisse: Kämpfe, Entdeckungen, Plot-Twists', en: 'Important events: battles, discoveries, plot twists' },
+    fraktion: { de: 'Gilden, Königreiche, Orden, Banden, Religionen', en: 'Guilds, kingdoms, orders, gangs, religions' },
+    geschaeft: { de: 'Läden, Händler, Marktplätze, Tavernen', en: 'Shops, merchants, marketplaces, taverns' },
+    dungeon: { de: 'Dungeons, Höhlen, Labyrinthe mit Räumen und Monstern', en: 'Dungeons, caves, labyrinths with rooms and monsters' },
+    intimitaet: { de: 'Intime/romantische Szenen zwischen Charakteren', en: 'Intimate/romantic scenes between characters' },
+    rueckblick: { de: 'Zusammenfassung der aktuellen Nachrichten (IMMER erstellen!)', en: 'Summary of current messages (ALWAYS create one!)' },
+  };
+
+  const lang = language === 'en' ? 'en' : 'de';
+
+  return activeTypes.map(t => {
+    const hint = typeHints[t.id]?.[lang] || '';
+    return `- ${t.icon} ${t.name} (type: "${t.id}")${hint ? ': ' + hint : ''}`;
+  }).join('\n');
 }
 
 /**
