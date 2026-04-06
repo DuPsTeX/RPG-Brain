@@ -43,8 +43,8 @@ export class SceneTracker {
 
   /**
    * Nach einer neuen Nachricht: Szene analysieren.
-   * PHASE 1: Schnelles Pattern-Matching (immer, sofort)
-   * PHASE 2: Optionaler LLM-Call für genauere Analyse (wenn konfiguriert)
+   * PHASE 1: <scene> Block aus LLM-Antwort parsen (beste Quelle, vom Chat-LLM generiert)
+   * PHASE 2: Fallback Pattern-Matching auf bekannte Namen (immer verfügbar)
    */
   async onMessageReceived(messageIndex) {
     if (this._isAnalyzing) return;
@@ -54,46 +54,138 @@ export class SceneTracker {
       const context = typeof SillyTavern !== 'undefined' ? SillyTavern.getContext() : null;
       if (!context?.chat || context.chat.length === 0) return;
 
-      // Letzte 3 Nachrichten als Text
+      const lastMessage = context.chat[context.chat.length - 1];
+      const lastText = lastMessage?.mes || '';
+
+      // PHASE 1: <scene> Block aus der letzten AI-Antwort parsen
+      let sceneFromBlock = null;
+      if (!lastMessage.is_user) {
+        sceneFromBlock = this._parseSceneBlock(lastText);
+        if (sceneFromBlock) {
+          // <scene> Block aus der sichtbaren Nachricht entfernen
+          this._cleanSceneBlockFromMessage(context, lastMessage);
+        }
+      }
+
+      // PHASE 2: Fallback Pattern-Matching
       const recentMessages = context.chat.slice(-3)
         .filter(msg => msg.mes && !msg.is_system)
         .map(msg => msg.mes)
         .join('\n');
 
-      if (!recentMessages.trim()) return;
+      const patternResult = recentMessages.trim()
+        ? this._analyzeByPatternMatching(recentMessages, lastText)
+        : null;
 
-      // Letzte einzelne Nachricht (für Ort-Erkennung)
-      const lastMessage = context.chat[context.chat.length - 1];
-      const lastText = lastMessage?.mes || '';
+      // Ergebnis zusammenführen: <scene> Block > Pattern-Matching > Vorherige Szene
+      const newOrt = sceneFromBlock?.ort || patternResult?.ort || this._currentScene.ort;
+      const newAnwesende = sceneFromBlock?.anwesende?.length > 0
+        ? sceneFromBlock.anwesende
+        : (patternResult?.anwesende?.length > 0 ? patternResult.anwesende : this._currentScene.anwesende);
+      const questUpdates = sceneFromBlock?.questUpdates || [];
 
-      // PHASE 1: Pattern-Matching (sofort, kein LLM nötig)
-      const patternResult = this._analyzeByPatternMatching(recentMessages, lastText);
+      // Alte Szene in History pushen
+      this._pushHistory();
 
-      if (patternResult) {
-        // Alte Szene in History pushen
-        this._pushHistory();
+      // Neue Szene setzen
+      this._currentScene = {
+        ort: newOrt,
+        anwesende: newAnwesende,
+        questUpdates,
+        messageIndex,
+      };
 
-        // Neue Szene setzen
-        this._currentScene = {
-          ort: patternResult.ort || this._currentScene.ort,
-          anwesende: patternResult.anwesende.length > 0
-            ? patternResult.anwesende
-            : this._currentScene.anwesende,
-          questUpdates: [],
-          messageIndex,
-        };
+      // Quest-Status automatisch aktualisieren
+      await this._applyQuestUpdates(questUpdates);
 
-        this._persist();
-        console.log(`[RPG-Brain] Szene (Pattern): Ort="${this._currentScene.ort}", Anwesende=[${this._currentScene.anwesende.join(', ')}]`);
-      }
+      this._persist();
 
-      // PHASE 2: LLM-Call (optional, asynchron, überschreibt Pattern-Ergebnis)
-      this._tryLlmAnalysis(recentMessages, messageIndex);
+      const source = sceneFromBlock ? 'LLM <scene>' : 'Pattern';
+      console.log(`[RPG-Brain] Szene (${source}): Ort="${this._currentScene.ort}", Anwesende=[${this._currentScene.anwesende.join(', ')}]`);
 
     } catch (err) {
       console.warn('[RPG-Brain] Szene-Analyse fehlgeschlagen:', err.message);
     } finally {
       this._isAnalyzing = false;
+    }
+  }
+
+  /**
+   * Parst den <scene> Block aus einer LLM-Antwort.
+   * Format:
+   * <scene>
+   * ort: Abenteurergilde von Aurion
+   * anwesende: Tay, Lysandra, Nyx, Elara
+   * quest_updates: Bürgschaft=abgeschlossen
+   * </scene>
+   */
+  _parseSceneBlock(messageText) {
+    if (!messageText) return null;
+
+    const sceneMatch = messageText.match(/<scene>([\s\S]*?)<\/scene>/i);
+    if (!sceneMatch) return null;
+
+    const block = sceneMatch[1].trim();
+    const result = { ort: null, anwesende: [], questUpdates: [] };
+
+    for (const line of block.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      const colonIdx = trimmed.indexOf(':');
+      if (colonIdx < 0) continue;
+
+      const key = trimmed.slice(0, colonIdx).trim().toLowerCase();
+      const value = trimmed.slice(colonIdx + 1).trim();
+
+      if (key === 'ort' && value) {
+        result.ort = value;
+      } else if (key === 'anwesende' && value) {
+        result.anwesende = value.split(',').map(n => n.trim()).filter(Boolean);
+      } else if (key === 'quest_updates' && value) {
+        // Format: "Questname=abgeschlossen, Andere Quest=fehlgeschlagen"
+        const updates = value.split(',').map(u => u.trim()).filter(Boolean);
+        for (const update of updates) {
+          const eqIdx = update.indexOf('=');
+          if (eqIdx > 0) {
+            result.questUpdates.push({
+              name: update.slice(0, eqIdx).trim(),
+              status: update.slice(eqIdx + 1).trim(),
+            });
+          }
+        }
+      }
+    }
+
+    // Validierung: mindestens Ort oder Anwesende müssen gesetzt sein
+    if (!result.ort && result.anwesende.length === 0) return null;
+
+    return result;
+  }
+
+  /**
+   * Entfernt den <scene> Block aus der sichtbaren Nachricht.
+   */
+  _cleanSceneBlockFromMessage(context, message) {
+    try {
+      const cleaned = message.mes.replace(/<scene>[\s\S]*?<\/scene>/gi, '').trimEnd();
+      if (cleaned !== message.mes) {
+        message.mes = cleaned;
+        // DOM aktualisieren
+        const messageId = context.chat.indexOf(message);
+        if (messageId >= 0) {
+          const messageBlock = $(`#chat .mes[mesid="${messageId}"] .mes_text`);
+          if (messageBlock.length) {
+            messageBlock.html(messageBlock.html().replace(/<scene>[\s\S]*?<\/scene>/gi, ''));
+          }
+        }
+        // Nachricht speichern
+        if (typeof context.saveChatDebounced === 'function') {
+          context.saveChatDebounced();
+        }
+      }
+    } catch (err) {
+      console.debug('[RPG-Brain] Scene-Block Cleanup Fehler:', err.message);
     }
   }
 
@@ -203,57 +295,6 @@ export class SceneTracker {
   }
 
   /**
-   * PHASE 2: Optionaler LLM-Call — verbessert Pattern-Matching Ergebnis.
-   * Läuft asynchron im Hintergrund, überschreibt die Szene wenn erfolgreich.
-   */
-  async _tryLlmAnalysis(messageText, messageIndex) {
-    const settings = this._getSettings();
-    const llmConfig = settings.extractionLlm;
-
-    // Nur wenn ein externer LLM konfiguriert ist
-    if (!llmConfig?.apiUrl || !llmConfig?.model) return;
-
-    try {
-      const knownNames = this.entityManager.getKnownNames();
-      const knownCharacters = knownNames.charakter || [];
-      const knownOrte = knownNames.ort || [];
-      const activeQuests = this.entityManager.getEntitiesByType('quest')
-        .filter(q => q.data.status === 'aktiv')
-        .map(q => q.data.name);
-
-      const language = settings.language || 'de';
-      const prompt = this._buildScenePrompt(
-        messageText, knownCharacters, knownOrte, activeQuests, language,
-      );
-
-      const response = await this._callOpenAICompatible(prompt, llmConfig);
-      if (!response) return;
-
-      const sceneResult = this._parseSceneResponse(response);
-      if (!sceneResult) return;
-
-      // LLM-Ergebnis überschreibt Pattern-Matching
-      this._currentScene = {
-        ort: sceneResult.ort || this._currentScene.ort,
-        anwesende: sceneResult.anwesende.length > 0
-          ? sceneResult.anwesende
-          : this._currentScene.anwesende,
-        questUpdates: sceneResult.quest_updates || [],
-        messageIndex,
-      };
-
-      // Quest-Status automatisch aktualisieren
-      await this._applyQuestUpdates(sceneResult.quest_updates || []);
-
-      this._persist();
-      console.log(`[RPG-Brain] Szene (LLM): Ort="${this._currentScene.ort}", Anwesende=[${this._currentScene.anwesende.join(', ')}]`);
-
-    } catch (err) {
-      console.debug('[RPG-Brain] Scene-LLM fehlgeschlagen (Pattern-Match aktiv):', err.message);
-    }
-  }
-
-  /**
    * Nachricht gelöscht → Szene auf vorherigen Stand zurücksetzen.
    */
   onMessageDeleted(remainingCount) {
@@ -330,89 +371,4 @@ export class SceneTracker {
     }
   }
 
-  _buildScenePrompt(messageText, characters, orte, quests, language) {
-    if (language === 'en') {
-      return `Analyze the current RPG scene. Answer ONLY with JSON, no markdown.
-
-Known characters: ${characters.join(', ') || 'none'}
-Known locations: ${orte.join(', ') || 'none'}
-Active quests: ${quests.join(', ') || 'none'}
-
-Messages:
-${messageText}
-
-{"ort":"current location","anwesende":["ONLY physically present characters"],"quest_updates":[]}`;
-    }
-
-    return `Analysiere die aktuelle RPG-Szene. Antworte NUR mit JSON, kein Markdown.
-
-Bekannte Charaktere: ${characters.join(', ') || 'keine'}
-Bekannte Orte: ${orte.join(', ') || 'keine'}
-Aktive Quests: ${quests.join(', ') || 'keine'}
-
-Nachrichten:
-${messageText}
-
-{"ort":"aktueller Ort","anwesende":["NUR physisch anwesende Charaktere"],"quest_updates":[]}`;
-  }
-
-  _parseSceneResponse(response) {
-    if (!response || typeof response !== 'string') return null;
-
-    let text = response.trim();
-
-    // Markdown Codeblock entfernen
-    const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (codeBlockMatch) {
-      text = codeBlockMatch[1].trim();
-    }
-
-    // JSON extrahieren
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return null;
-
-    try {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return {
-        ort: typeof parsed.ort === 'string' ? parsed.ort : null,
-        anwesende: Array.isArray(parsed.anwesende) ? parsed.anwesende.filter(n => typeof n === 'string') : [],
-        quest_updates: Array.isArray(parsed.quest_updates) ? parsed.quest_updates : [],
-      };
-    } catch {
-      console.warn('[RPG-Brain] Szene-JSON Parse-Fehler:', text.slice(0, 200));
-      return null;
-    }
-  }
-
-  async _callOpenAICompatible(prompt, config) {
-    const url = config.apiUrl.replace(/\/+$/, '');
-    const endpoint = url.includes('/chat/completions') ? url : `${url}/chat/completions`;
-
-    const headers = { 'Content-Type': 'application/json' };
-    if (config.apiKey) {
-      headers['Authorization'] = `Bearer ${config.apiKey}`;
-    }
-
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model: config.model,
-        messages: [
-          { role: 'system', content: 'Du bist ein RPG-Szene-Analysator. Antworte NUR mit JSON.' },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.2,
-        max_tokens: 500,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      throw new Error(`API ${response.status}: ${errorText.slice(0, 200)}`);
-    }
-
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content || null;
-  }
 }

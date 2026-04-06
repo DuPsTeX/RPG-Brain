@@ -98,6 +98,10 @@ export class PromptInjector {
       return '';
     }
 
+    // Scene-Tracker Anweisung: LLM soll am Ende jeder Antwort einen <scene> Block generieren
+    const sceneInstruction = this._buildSceneInstruction(settings.language || 'de');
+    parts.push(sceneInstruction);
+
     const injection = `${headerLine}\n${parts.join('\n\n')}\n[/RPG-Brain Kontext]`;
 
     this._lastInjection = injection;
@@ -114,6 +118,32 @@ export class PromptInjector {
       text: this._lastInjection,
       tokens: this._lastInjectionTokens,
     };
+  }
+
+  /**
+   * Baut die Scene-Tracker Anweisung für das Chat-LLM.
+   * Das LLM generiert am Ende jeder Antwort einen unsichtbaren <scene> Block.
+   */
+  _buildSceneInstruction(language) {
+    if (language === 'en') {
+      return `[SCENE TRACKER - MANDATORY]
+At the VERY END of EVERY response, append this EXACT block (it will be hidden from the user):
+<scene>
+ort: [current location name]
+anwesende: [comma-separated list of characters physically present in the scene RIGHT NOW]
+quest_updates: [only if a quest status changed, format: "quest name=abgeschlossen" or "quest name=fehlgeschlagen", otherwise leave empty]
+</scene>
+IMPORTANT: ALWAYS include the <scene> block. NEVER skip it. It is invisible to the user.`;
+    }
+
+    return `[SZENE-TRACKER — PFLICHT]
+Füge am ENDE JEDER Antwort diesen Block an (wird dem User nicht angezeigt):
+<scene>
+ort: [aktueller Ortsname]
+anwesende: [Komma-getrennte Liste der Charaktere die JETZT GERADE physisch in der Szene anwesend sind]
+quest_updates: [nur wenn sich ein Quest-Status geändert hat: "Questname=abgeschlossen" oder "Questname=fehlgeschlagen", sonst leer lassen]
+</scene>
+WICHTIG: IMMER den <scene> Block anfügen. NIE weglassen. Er ist für den User unsichtbar.`;
   }
 
   /**
