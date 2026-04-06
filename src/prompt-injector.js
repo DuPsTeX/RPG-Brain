@@ -152,41 +152,47 @@ export class PromptInjector {
       console.debug('[RPG-Brain] LightRAG-Query fehlgeschlagen:', err.message);
     }
 
+    // Szene-Daten für Matching vorbereiten
+    const hasScene = scene && scene.anwesende && scene.anwesende.length > 0;
+    const anwesendeLower = hasScene ? scene.anwesende.map(n => n.toLowerCase()) : [];
+    const sceneOrtLower = scene?.ort?.toLowerCase() || '';
+
     // Entities priorisieren: Szene > LightRAG > Aktualität
     const scored = allEntities.map(entity => {
-      let score = 0; // Basis-Score 0 (nicht in Szene = niedrig)
+      let score = 1; // Basis-Score für alle
 
-      // Szene-Bewusstsein: Höchste Priorität
-      if (scene && scene.anwesende.length > 0) {
+      if (hasScene) {
         const name = entity.data.name?.toLowerCase() || '';
 
         if (entity.typeId === 'charakter') {
-          // Charakter in Szene? → Großer Boost
-          if (scene.anwesende.some(n => n.toLowerCase() === name)) {
-            score += 10;
+          if (anwesendeLower.includes(name)) {
+            score += 10; // In der Szene → höchste Priorität
+            entity._inScene = true;
+          } else {
+            score = 0; // Nicht in Szene → rausfiltern
           }
         } else if (entity.typeId === 'beziehung') {
-          // Beziehung nur relevant wenn mindestens eine Person anwesend
           const von = entity.data.von?.toLowerCase() || '';
           const zu = entity.data.zu?.toLowerCase() || '';
-          const anwesendeLower = scene.anwesende.map(n => n.toLowerCase());
-          if (anwesendeLower.includes(von) || anwesendeLower.includes(zu)) {
+          // Beziehung relevant wenn BEIDE Personen anwesend
+          const vonPresent = anwesendeLower.includes(von);
+          const zuPresent = anwesendeLower.includes(zu);
+          if (vonPresent && zuPresent) {
             score += 8;
+          } else if (vonPresent || zuPresent) {
+            score += 4; // Mindestens einer anwesend
+          } else {
+            score = 0;
           }
         } else if (entity.typeId === 'ort') {
-          // Ort nur relevant wenn aktueller Szene-Ort
-          if (scene.ort && name.includes(scene.ort.toLowerCase())) {
-            score += 8;
-          } else if (scene.ort && scene.ort.toLowerCase().includes(name)) {
-            score += 8;
+          if (sceneOrtLower && this._ortMatchesScene(name, sceneOrtLower)) {
+            score += 10;
+            entity._isCurrentOrt = true;
+          } else {
+            score = 0;
           }
-        } else {
-          // Andere Typen: Basis-Score
-          score += 1;
         }
-      } else {
-        // Kein Szene-Tracking → alte Logik (alles Basis 1)
-        score = 1;
+        // Quests, Rückblicke etc. behalten ihren Basis-Score
       }
 
       // LightRAG-Boost
@@ -202,9 +208,17 @@ export class PromptInjector {
         score += 3;
       }
 
-      // Boost für Rückblicke (immer relevant)
+      // Boost für Rückblicke — nur den NEUESTEN
       if (entity.typeId === 'rueckblick') {
         score += 2;
+        // Neuester Rückblick bekommt Extra-Boost
+        const allRecaps = allEntities.filter(e => e.typeId === 'rueckblick');
+        if (allRecaps.length > 0) {
+          const newest = allRecaps.reduce((a, b) =>
+            (b.updatedAt || 0) > (a.updatedAt || 0) ? b : a
+          );
+          if (entity.id === newest.id) score += 5;
+        }
       }
 
       // Boost für kürzlich aktualisierte Entities
@@ -245,6 +259,24 @@ export class PromptInjector {
     }
 
     return filtered;
+  }
+
+  /**
+   * Prüft ob ein Ort-Name zur aktuellen Szene passt.
+   * Flexibles Matching: "Abenteurergilde" matched "Abenteurergilde von Aurion" etc.
+   */
+  _ortMatchesScene(entityNameLower, sceneOrtLower) {
+    if (!entityNameLower || !sceneOrtLower) return false;
+    // Direkte Übereinstimmung
+    if (entityNameLower === sceneOrtLower) return true;
+    // Einer enthält den anderen
+    if (entityNameLower.includes(sceneOrtLower)) return true;
+    if (sceneOrtLower.includes(entityNameLower)) return true;
+    // Wort-basiertes Matching (mindestens 2 signifikante Wörter müssen übereinstimmen)
+    const entityWords = entityNameLower.split(/\s+/).filter(w => w.length > 3);
+    const sceneWords = sceneOrtLower.split(/\s+/).filter(w => w.length > 3);
+    const matchingWords = entityWords.filter(w => sceneWords.includes(w));
+    return matchingWords.length >= 1;
   }
 
   /**

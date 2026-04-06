@@ -72,8 +72,11 @@ export const DEFAULT_SECTIONS = [
 
 function formatRueckblick(entities) {
   if (entities.length === 0) return '';
-  // Neuesten Rückblick nehmen
-  const latest = entities.sort((a, b) => (b.data.bis_nachricht || 0) - (a.data.bis_nachricht || 0))[0];
+  // Neuesten Rückblick nehmen (nach updatedAt, dann bis_nachricht)
+  const latest = entities.sort((a, b) =>
+    (b.updatedAt || 0) - (a.updatedAt || 0) ||
+    (b.data.bis_nachricht || 0) - (a.data.bis_nachricht || 0)
+  )[0];
   return `📖 RÜCKBLICK:\n${latest.data.zusammenfassung || latest.data.name}`;
 }
 
@@ -118,10 +121,19 @@ function formatCharaktere(entities, scene) {
   return `🧙 AKTIVE CHARAKTERE:\n${lines.join('\n')}`;
 }
 
-function formatWichtigeInfos(entities) {
-  const infos = entities
-    .filter(e => e.data.wichtig)
-    .map(e => `- ${e.data.name}: ${e.data.wichtig}`);
+function formatWichtigeInfos(entities, scene) {
+  // Szene-Filter: Nur Infos von anwesenden Charakteren
+  const anwesendeLower = (scene?.anwesende || []).map(n => n.toLowerCase());
+
+  let filtered = entities.filter(e => e.data.wichtig);
+
+  if (anwesendeLower.length > 0) {
+    filtered = filtered.filter(e =>
+      anwesendeLower.includes(e.data.name?.toLowerCase())
+    );
+  }
+
+  const infos = filtered.map(e => `- ${e.data.name}: ${e.data.wichtig}`);
 
   if (infos.length === 0) return '';
   return `⚠️ WICHTIGE CHARAKTER-INFOS:\n${infos.join('\n')}`;
