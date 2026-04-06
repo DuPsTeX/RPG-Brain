@@ -39,6 +39,10 @@ ${knownSection || 'Keine bekannten Entities.'}
 8. Wichtige narrative Infos (Versprechen, Geheimnisse, Pläne) gehören in das "wichtig" Feld
 9. QUESTS: Erkenne auch IMPLIZITE Aufträge, Ziele, Missionen, Versprechen. Wenn jemand sagt "finde X", "bringe Y zu Z", "beschütze A", "besorge B" — das ist eine Quest mit status "aktiv"
 10. RÜCKBLICK: Erstelle IMMER genau einen Rückblick (type: "rueckblick") der die analysierten Nachrichten zusammenfasst. Felder: name (z.B. "Session-Zusammenfassung"), zusammenfassung (2-4 Sätze was passiert ist), wichtige_events (Stichpunkte), beteiligte (Komma-getrennte Namen)
+11. ITEMS: Erstelle für JEDES erwähnte Objekt, jede Waffe, Rüstung, Trank, Nahrung, Schlüssel, Werkzeug oder magischen Gegenstand eine eigene Item-Entity (type: "item"). Felder: name, typ (Waffe/Rüstung/Trank/etc.), besitzer (wer hat es), beschreibung, eigenschaften
+12. GESCHÄFTE: Erkenne Läden, Händler, Marktplätze, Tavernen oder andere Orte an denen gehandelt wird als Geschäft-Entity (type: "geschaeft"). Felder: name, ort, haendler, waren, preise
+13. ORTE: Erkenne JEDEN neuen Ort der betreten oder beschrieben wird (type: "ort"). Räume, Gebäude, Städte, Dungeons — alles.
+14. NUTZE ALLE VERFÜGBAREN TYPEN! Nicht nur Charakter und Beziehung. Prüfe jeden Typ ob er passt.
 
 ## Antwort-Format
 Antworte NUR mit einem JSON-Array. Keine Erklärungen, kein Markdown.
@@ -79,6 +83,10 @@ ${knownSection || 'No known entities.'}
 8. Important narrative info (promises, secrets, plans) belong in the "wichtig" field
 9. QUESTS: Also detect IMPLICIT tasks, goals, missions, promises. If someone says "find X", "bring Y to Z", "protect A", "get B" — that is a quest with status "aktiv"
 10. RECAP: ALWAYS create exactly one recap (type: "rueckblick") summarizing the analyzed messages. Fields: name (e.g. "Session Summary"), zusammenfassung (2-4 sentences of what happened), wichtige_events (bullet points), beteiligte (comma-separated names)
+11. ITEMS: Create an item entity (type: "item") for EVERY mentioned weapon, armor, potion, food, key, tool, or magical object. Fields: name, typ (Waffe/Rüstung/Trank/etc.), besitzer (owner), beschreibung, eigenschaften
+12. SHOPS: Detect shops, merchants, marketplaces, taverns or other trade locations as geschaeft entities (type: "geschaeft"). Fields: name, ort, haendler, waren, preise
+13. LOCATIONS: Detect EVERY new location entered or described (type: "ort"). Rooms, buildings, cities, dungeons — everything.
+14. USE ALL AVAILABLE TYPES! Not just character and relationship. Check every type if it fits.
 
 ## Response Format
 Respond ONLY with a JSON array. No explanations, no markdown.
