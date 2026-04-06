@@ -127,23 +127,23 @@ export class PromptInjector {
   _buildSceneInstruction(language) {
     if (language === 'en') {
       return `[SCENE TRACKER - MANDATORY]
-At the VERY END of EVERY response, append this EXACT block (it will be hidden from the user):
+Start EVERY response with this EXACT block BEFORE any other text (it will be hidden from the user):
 <scene>
 ort: [current location name]
 anwesende: [comma-separated list of characters physically present in the scene RIGHT NOW]
 quest_updates: [only if a quest status changed, format: "quest name=abgeschlossen" or "quest name=fehlgeschlagen", otherwise leave empty]
 </scene>
-IMPORTANT: ALWAYS include the <scene> block. NEVER skip it. It is invisible to the user.`;
+IMPORTANT: The <scene> block MUST be the FIRST thing in your response. NEVER skip it. It is invisible to the user. Write your normal response AFTER it.`;
     }
 
     return `[SZENE-TRACKER — PFLICHT]
-Füge am ENDE JEDER Antwort diesen Block an (wird dem User nicht angezeigt):
+Beginne JEDE Antwort mit diesem Block BEVOR du irgendetwas anderes schreibst (wird dem User nicht angezeigt):
 <scene>
 ort: [aktueller Ortsname]
 anwesende: [Komma-getrennte Liste der Charaktere die JETZT GERADE physisch in der Szene anwesend sind]
 quest_updates: [nur wenn sich ein Quest-Status geändert hat: "Questname=abgeschlossen" oder "Questname=fehlgeschlagen", sonst leer lassen]
 </scene>
-WICHTIG: IMMER den <scene> Block anfügen. NIE weglassen. Er ist für den User unsichtbar.`;
+WICHTIG: Der <scene> Block MUSS das ERSTE in deiner Antwort sein. NIE weglassen. Er ist für den User unsichtbar. Schreibe deine normale Antwort DANACH.`;
   }
 
   /**

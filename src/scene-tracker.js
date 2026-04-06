@@ -165,10 +165,12 @@ export class SceneTracker {
 
   /**
    * Entfernt den <scene> Block aus der sichtbaren Nachricht.
+   * Block kann am Anfang oder Ende stehen.
    */
   _cleanSceneBlockFromMessage(context, message) {
     try {
-      const cleaned = message.mes.replace(/<scene>[\s\S]*?<\/scene>/gi, '').trimEnd();
+      // Block entfernen + führende/trailing Whitespace/Newlines aufräumen
+      const cleaned = message.mes.replace(/<scene>[\s\S]*?<\/scene>\s*/gi, '').replace(/^\s*\n+/, '').trimEnd();
       if (cleaned !== message.mes) {
         message.mes = cleaned;
         // DOM aktualisieren
