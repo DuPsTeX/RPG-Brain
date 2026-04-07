@@ -85,6 +85,8 @@ function formatCharaktere(entities, scene) {
 
   const hasStat = (v) => v !== undefined && v !== null && v !== '' && !isNaN(v);
   const anwesendeLower = (scene?.anwesende || []).map(n => n.toLowerCase());
+  // Prüfe ob Scene-Status für diesen Charakter existiert (dann keine Entity-Stats duplizieren)
+  const hasSceneStatus = (name) => scene?.status && name && scene.status[name];
 
   const lines = entities.map(e => {
     const d = e.data;
@@ -92,27 +94,30 @@ function formatCharaktere(entities, scene) {
     const isInScene = anwesendeLower.includes(d.name?.toLowerCase());
     const parts = [`${d.name} [${genderIcon} ${d.rasse || ''} ${d.klasse || ''}]`.trim()];
 
-    // Stats kompakt — nur wenn tatsächlich ein Zahlenwert gesetzt ist
-    const stats = [];
-    if (hasStat(d.hp)) stats.push(`HP: ${d.hp}/100`);
-    if (hasStat(d.mana)) stats.push(`Mana: ${d.mana}/100`);
-    if (hasStat(d.hunger)) stats.push(`Hunger: ${d.hunger}/100`);
-    if (hasStat(d.durst)) stats.push(`Durst: ${d.durst}/100`);
-    if (hasStat(d.sauberkeit)) stats.push(`Sauberkeit: ${d.sauberkeit}/100`);
-    if (hasStat(d.erregung)) stats.push(`Erregung: ${d.erregung}/100`);
-    if (hasStat(d.sperma_menge) && (d.geschlecht === 'männlich' || d.geschlecht === 'futa')) {
-      stats.push(`Sperma: ${d.sperma_menge}/100`);
+    // Stats NICHT duplizieren wenn Scene-Status vorhanden (dort aktueller)
+    if (!hasSceneStatus(d.name)) {
+      const stats = [];
+      if (hasStat(d.hp)) stats.push(`HP: ${d.hp}/100`);
+      if (hasStat(d.mana)) stats.push(`Mana: ${d.mana}/100`);
+      if (hasStat(d.hunger)) stats.push(`Hunger: ${d.hunger}/100`);
+      if (hasStat(d.durst)) stats.push(`Durst: ${d.durst}/100`);
+      if (hasStat(d.sauberkeit)) stats.push(`Sauberkeit: ${d.sauberkeit}/100`);
+      if (hasStat(d.erregung)) stats.push(`Erregung: ${d.erregung}/100`);
+      if (hasStat(d.sperma_menge) && (d.geschlecht === 'männlich' || d.geschlecht === 'futa')) {
+        stats.push(`Sperma: ${d.sperma_menge}/100`);
+      }
+      if (stats.length > 0) parts.push(stats.join(' | '));
     }
-    if (stats.length > 0) parts.push(stats.join(' | '));
 
     // Erweiterte Details NUR für anwesende Charaktere
     if (isInScene) {
       if (d.aussehen) parts.push(`Aussehen: ${d.aussehen}`);
       if (d.persoenlichkeit) parts.push(`Persönlichkeit: ${d.persoenlichkeit}`);
-      if (d.inventar) parts.push(`Inventar: ${d.inventar}`);
+      // Inventar nicht duplizieren wenn in Scene-Status
+      if (d.inventar && !hasSceneStatus(d.name)) parts.push(`Inventar: ${d.inventar}`);
       if (d.wichtig) parts.push(`Wichtig: ${d.wichtig}`);
     } else {
-      if (d.inventar) parts.push(`Inventar: ${d.inventar}`);
+      if (d.inventar && !hasSceneStatus(d.name)) parts.push(`Inventar: ${d.inventar}`);
     }
 
     return parts.join('\n  ');

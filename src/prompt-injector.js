@@ -3,6 +3,7 @@
 // Nutzt Scene Tracker für szene-basierte Filterung
 
 import { InjectionSectionsManager } from './injection-sections.js';
+import { getActiveTemplate, buildExampleStatus, buildFieldDescription } from './stat-templates.js';
 
 export class PromptInjector {
   /**
@@ -54,9 +55,17 @@ export class PromptInjector {
 
     // Szene-Info als erstes (wenn verfügbar)
     if (scene?.ort) {
-      const sceneLine = `📍 Aktuelle Szene: ${scene.ort} | Anwesend: ${scene.anwesende.join(', ') || 'unbekannt'}`;
+      const gruppeNames = scene.gruppe?.length > 0 ? ` | Gruppe: ${scene.gruppe.join(', ')}` : '';
+      const sceneLine = `📍 Aktuelle Szene: ${scene.ort} | Anwesend: ${scene.anwesende.join(', ') || 'unbekannt'}${gruppeNames}`;
       parts.push(sceneLine);
       estimatedTokens += this._estimateTokens(sceneLine);
+
+      // Gruppen-Status injizieren (wenn Stats vorhanden)
+      const statusText = this._buildStatusInjection(scene);
+      if (statusText) {
+        parts.push(statusText);
+        estimatedTokens += this._estimateTokens(statusText);
+      }
     }
 
     for (const section of sections) {
@@ -122,28 +131,117 @@ export class PromptInjector {
 
   /**
    * Baut die Scene-Tracker Anweisung für das Chat-LLM.
-   * Das LLM generiert am Ende jeder Antwort einen unsichtbaren <scene> Block.
+   * Generiert dynamisch basierend auf dem aktiven Stat-Template.
+   * Das LLM generiert am Anfang jeder Antwort einen unsichtbaren <scene> JSON Block.
    */
   _buildSceneInstruction(language) {
+    const settings = this._getSettings();
+    const statsEnabled = settings.statsEnabled !== false;
+    const template = getActiveTemplate(settings);
+    const fields = template.fields || [];
+
+    // Beispiel-Status für die Instruktion generieren
+    const exampleStatus = (statsEnabled && fields.length > 0) ? buildExampleStatus(fields) : null;
+
+    // Kompaktes JSON-Beispiel
+    const example = { ort: '...', anwesende: ['Char1', 'Char2', 'NPC1'], gruppe: ['Char1', 'Char2'] };
+    if (exampleStatus) {
+      example.status = { Char1: exampleStatus, Char2: { [fields[0]?.key || 'hp']: fields[0]?.default || '100/100' } };
+    }
+    example.quest_updates = [];
+
+    const exampleJson = JSON.stringify(example);
+
+    // Feld-Beschreibungen für die Instruktion
+    const fieldDesc = (statsEnabled && fields.length > 0) ? buildFieldDescription(fields, language) : '';
+
     if (language === 'en') {
-      return `[SCENE TRACKER - MANDATORY]
-Start EVERY response with this EXACT block BEFORE any other text (it will be hidden from the user):
+      let instruction = `[SCENE TRACKER - MANDATORY]
+Start EVERY response with this JSON block BEFORE any other text (hidden from user):
 <scene>
-ort: [current location name]
-anwesende: [comma-separated list of characters physically present in the scene RIGHT NOW]
-quest_updates: [only if a quest status changed, format: "quest name=abgeschlossen" or "quest name=fehlgeschlagen", otherwise leave empty]
+${exampleJson}
 </scene>
-IMPORTANT: The <scene> block MUST be the FIRST thing in your response. NEVER skip it. It is invisible to the user. Write your normal response AFTER it.`;
+Rules:
+- ort: Current location name
+- anwesende: ALL characters physically present in the scene RIGHT NOW
+- gruppe: Only official party/travel companions of the player`;
+
+      if (statsEnabled && fields.length > 0) {
+        instruction += `
+- status: Stats ONLY for gruppe members. Fields:
+${fieldDesc}`;
+      }
+
+      instruction += `
+- quest_updates: Only on status change: [{"name":"...","status":"completed|failed"}]
+- Valid JSON! The <scene> block MUST be the FIRST thing in your response. NEVER skip it.`;
+
+      return instruction;
     }
 
-    return `[SZENE-TRACKER — PFLICHT]
-Beginne JEDE Antwort mit diesem Block BEVOR du irgendetwas anderes schreibst (wird dem User nicht angezeigt):
+    // Deutsch (Default)
+    let instruction = `[SZENE-TRACKER — PFLICHT]
+Beginne JEDE Antwort mit diesem JSON-Block BEVOR du irgendetwas anderes schreibst (wird dem User nicht angezeigt):
 <scene>
-ort: [aktueller Ortsname]
-anwesende: [Komma-getrennte Liste der Charaktere die JETZT GERADE physisch in der Szene anwesend sind]
-quest_updates: [nur wenn sich ein Quest-Status geändert hat: "Questname=abgeschlossen" oder "Questname=fehlgeschlagen", sonst leer lassen]
+${exampleJson}
 </scene>
-WICHTIG: Der <scene> Block MUSS das ERSTE in deiner Antwort sein. NIE weglassen. Er ist für den User unsichtbar. Schreibe deine normale Antwort DANACH.`;
+Regeln:
+- ort: Aktueller Ortsname
+- anwesende: ALLE Charaktere die JETZT GERADE physisch in der Szene sind
+- gruppe: Nur offizielle Reisegefährten/Party-Mitglieder des Spielers`;
+
+    if (statsEnabled && fields.length > 0) {
+      instruction += `
+- status: Stats NUR für gruppe-Mitglieder. Felder:
+${fieldDesc}`;
+    }
+
+    instruction += `
+- quest_updates: Nur bei Statusänderung: [{"name":"...","status":"abgeschlossen|fehlgeschlagen"}]
+- Valides JSON! Der <scene> Block MUSS das ERSTE in deiner Antwort sein. NIE weglassen.`;
+
+    return instruction;
+  }
+
+  /**
+   * Baut die kompakte Status-Injection für Gruppenmitglieder.
+   * Format: ⚔️ Gruppen-Status:\n  Name: HP 45/100 | Gold 120 | Waffe: Schwert
+   */
+  _buildStatusInjection(scene) {
+    if (!scene?.status || Object.keys(scene.status).length === 0) return null;
+
+    const settings = this._getSettings();
+    if (settings.statsEnabled === false) return null;
+
+    const lines = [];
+    for (const [charName, stats] of Object.entries(scene.status)) {
+      if (!stats || typeof stats !== 'object') continue;
+
+      const parts = [];
+      for (const [key, value] of Object.entries(stats)) {
+        if (value === null || value === undefined || value === '') continue;
+
+        if (Array.isArray(value)) {
+          // Listen kompakt: "Inventar: Item1, Item2"
+          if (value.length > 0) parts.push(`${key}: ${value.join(', ')}`);
+        } else if (typeof value === 'object') {
+          // Equipment: "Ausrüstung: Waffe=Schwert, Rüstung=Leder"
+          const slots = Object.entries(value)
+            .filter(([, v]) => v && v !== '...')
+            .map(([k, v]) => `${k}=${v}`);
+          if (slots.length > 0) parts.push(`${key}: ${slots.join(', ')}`);
+        } else {
+          parts.push(`${key}: ${value}`);
+        }
+      }
+
+      if (parts.length > 0) {
+        lines.push(`  ${charName}: ${parts.join(' | ')}`);
+      }
+    }
+
+    if (lines.length === 0) return null;
+    return `⚔️ Gruppen-Status:\n${lines.join('\n')}`;
   }
 
   /**

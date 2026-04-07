@@ -7,6 +7,8 @@ import { EntityManager } from './src/entity-manager.js';
 import { ExtractionTrigger } from './src/extraction-trigger.js';
 import { PromptInjector } from './src/prompt-injector.js';
 import { SceneTracker } from './src/scene-tracker.js';
+import { PartyManager } from './src/party-manager.js';
+import { getActiveTemplate, getTemplateFields, PRESET_TEMPLATES } from './src/stat-templates.js';
 import { RPGBrainPanel } from './src/panel/panel.js';
 import { initI18n, setLocale } from './src/i18n/i18n-loader.js';
 
@@ -15,12 +17,13 @@ const lightrag = new LightRAGClient();
 const registry = new EntityTypeRegistry(() => getSettings(), () => saveSettings());
 const entityManager = new EntityManager(registry, lightrag);
 const extractionTrigger = new ExtractionTrigger(registry, entityManager, lightrag, () => getSettings());
-const sceneTracker = new SceneTracker(entityManager, () => getSettings());
+const partyManager = new PartyManager();
+const sceneTracker = new SceneTracker(entityManager, () => getSettings(), partyManager);
 const promptInjector = new PromptInjector(entityManager, lightrag, () => getSettings(), () => saveSettings(), sceneTracker);
-const panel = new RPGBrainPanel(entityManager, registry, promptInjector, lightrag, sceneTracker);
+const panel = new RPGBrainPanel(entityManager, registry, promptInjector, lightrag, sceneTracker, partyManager, () => getSettings());
 
 // Globaler Zugriff für Console-Tests und andere Module
-window.rpgBrain = { lightrag, registry, entityManager, extractionTrigger, promptInjector, sceneTracker, panel };
+window.rpgBrain = { lightrag, registry, entityManager, extractionTrigger, promptInjector, sceneTracker, partyManager, panel };
 
 let currentChatId = null;
 let isInitialized = false;
@@ -37,8 +40,11 @@ const DEFAULT_SETTINGS = {
     model: '',
   },
   triggerMode: 'every_5',
-  tokenBudget: 1500,
+  tokenBudget: 2000,
   language: 'de',
+  statsEnabled: true,
+  statTemplate: 'dnd',
+  statTemplateCustom: null,
 };
 
 // --- Settings Persistence ---
@@ -67,6 +73,9 @@ function applySettingsToUI() {
   $('#rpg-brain-token-budget').val(settings.tokenBudget);
   $('#rpg-brain-budget-display').text(settings.tokenBudget);
   $('#rpg-brain-language').val(settings.language);
+  $('#rpg-brain-stats-enabled').prop('checked', settings.statsEnabled !== false);
+  $('#rpg-brain-stat-template').val(settings.statTemplate || 'dnd');
+  updateTemplateInfo();
 }
 
 function readSettingsFromUI() {
@@ -79,11 +88,40 @@ function readSettingsFromUI() {
     model: $('#rpg-brain-extraction-model').val() || '',
   };
   settings.triggerMode = $('#rpg-brain-trigger-mode').val();
-  settings.tokenBudget = parseInt($('#rpg-brain-token-budget').val()) || 1500;
+  settings.tokenBudget = parseInt($('#rpg-brain-token-budget').val()) || 2000;
   settings.language = $('#rpg-brain-language').val();
+  settings.statsEnabled = $('#rpg-brain-stats-enabled').is(':checked');
+  settings.statTemplate = $('#rpg-brain-stat-template').val() || 'dnd';
 
   lightrag.setBaseUrl(settings.lightragUrl);
+  syncTemplateFields();
   saveSettings();
+}
+
+/**
+ * Zeigt Info über das aktive Template an.
+ */
+function updateTemplateInfo() {
+  const settings = getSettings();
+  const template = getActiveTemplate(settings);
+  const fields = template.fields || [];
+  if (fields.length > 0) {
+    const fieldNames = fields.map(f => f.label).join(', ');
+    $('#rpg-brain-template-info').text(`Felder: ${fieldNames}`);
+  } else {
+    $('#rpg-brain-template-info').text('Keine Felder definiert (Custom Template)');
+  }
+}
+
+/**
+ * Synchronisiert Template-Felder zum Panel.
+ */
+function syncTemplateFields() {
+  const settings = getSettings();
+  const fields = getTemplateFields(settings);
+  if (panel?.tabs) {
+    panel.tabs.setTemplateFields(fields);
+  }
 }
 
 // --- Connection Management ---
@@ -179,10 +217,12 @@ async function onChatChanged() {
   currentChatId = newChatId;
   console.log('[RPG-Brain] Chat gewechselt:', currentChatId);
 
-  // Entity-Index + Extraktions-State + Szene für den neuen Chat laden
+  // Entity-Index + Extraktions-State + Szene + Party für den neuen Chat laden
   entityManager.loadForChat(currentChatId);
   extractionTrigger.loadStateForChat();
   sceneTracker.loadStateForChat();
+  partyManager.loadForChat();
+  syncTemplateFields();
   updateStats();
 
   // Injection für neuen Chat aktualisieren
@@ -315,6 +355,67 @@ function bindSettingsEvents() {
   });
 
   $(document).on('click', '#rpg-brain-open-dashboard', openDashboard);
+
+  // Stats settings
+  $(document).on('change', '#rpg-brain-stats-enabled', readSettingsFromUI);
+  $(document).on('change', '#rpg-brain-stat-template', () => {
+    readSettingsFromUI();
+    updateTemplateInfo();
+    panel.refresh();
+  });
+
+  // Party-Badge Klick im Panel
+  $(document).on('click', '.rpg-brain-party-badge', function () {
+    const charName = $(this).data('char-name');
+    if (!charName || !partyManager) return;
+    const isCurrently = partyManager.isPartyMember(charName);
+    partyManager.setUserOverride(charName, !isCurrently);
+    panel.refresh();
+    updateInjection();
+  });
+
+  // Inline-Edit für Stats im Panel
+  $(document).on('click', '.rpg-brain-stat-editable', function () {
+    const el = $(this);
+    if (el.find('input').length) return; // Bereits im Edit-Modus
+
+    const currentValue = el.text().trim();
+    const charName = el.data('char');
+    const fieldKey = el.data('field');
+
+    const input = $(`<input type="text" class="rpg-brain-inline-edit" value="${currentValue}" />`);
+    el.empty().append(input);
+    input.focus().select();
+
+    const save = () => {
+      const newValue = input.val().trim();
+      el.text(newValue || currentValue);
+
+      // Scene-Status aktualisieren
+      if (charName && fieldKey && sceneTracker) {
+        const scene = sceneTracker.getCurrentScene();
+        if (scene.status && scene.status[charName]) {
+          // Equipment-Subfield: "ausruestung.waffe" → scene.status[char].ausruestung.waffe
+          if (fieldKey.includes('.')) {
+            const [parent, sub] = fieldKey.split('.', 2);
+            if (scene.status[charName][parent] && typeof scene.status[charName][parent] === 'object') {
+              scene.status[charName][parent][sub] = newValue;
+            }
+          } else {
+            scene.status[charName][fieldKey] = newValue;
+          }
+          sceneTracker._persist();
+          updateInjection();
+        }
+      }
+    };
+
+    input.on('blur', save);
+    input.on('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); save(); }
+      if (e.key === 'Escape') { el.text(currentValue); }
+    });
+  });
 }
 
 // --- Initialization ---
@@ -360,7 +461,11 @@ async function initExtension() {
     entityManager.loadForChat(currentChatId);
     extractionTrigger.loadStateForChat();
     sceneTracker.loadStateForChat();
+    partyManager.loadForChat();
   }
+
+  // Template-Felder zum Panel synchronisieren
+  syncTemplateFields();
 
   // Register ST event listeners
   const eventSource = context.eventSource;

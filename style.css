@@ -678,3 +678,147 @@
 .rpg-brain-absent:hover {
   opacity: 0.85;
 }
+
+/* Scene Gruppe Info */
+.rpg-brain-scene-group {
+  font-size: 0.85em;
+  color: rgba(255, 215, 0, 0.8);
+  margin-top: 4px;
+}
+
+/* Party-Badge */
+.rpg-brain-party-badge {
+  cursor: pointer;
+  opacity: 0.3;
+  margin-right: 4px;
+  font-size: 0.85em;
+  transition: opacity 0.2s;
+}
+
+.rpg-brain-party-badge:hover {
+  opacity: 0.7;
+}
+
+.rpg-brain-party-badge--active {
+  opacity: 1;
+  filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.6));
+}
+
+/* Party-Mitglied Card */
+.rpg-brain-party-member {
+  border-left: 3px solid #ffd93d;
+}
+
+/* Stat Sheet */
+.rpg-brain-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 0;
+  font-size: 0.85em;
+}
+
+.rpg-brain-stat-label {
+  color: rgba(255, 255, 255, 0.6);
+  flex-shrink: 0;
+}
+
+.rpg-brain-stat-value {
+  color: #fff;
+  text-align: right;
+}
+
+/* Editable Stats */
+.rpg-brain-stat-editable {
+  cursor: pointer;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.2);
+  padding: 0 2px;
+}
+
+.rpg-brain-stat-editable:hover {
+  border-bottom-color: rgba(78, 204, 163, 0.6);
+  color: #4ecca3;
+}
+
+/* Inventory Tags */
+.rpg-brain-list-field {
+  margin-top: 6px;
+}
+
+.rpg-brain-list-label {
+  font-size: 0.8em;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 4px;
+}
+
+.rpg-brain-inventory-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.rpg-brain-inventory-pill {
+  background: rgba(107, 203, 119, 0.15);
+  border: 1px solid rgba(107, 203, 119, 0.3);
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 0.8em;
+  color: #6bcb77;
+}
+
+/* Equipment Slots */
+.rpg-brain-equipment-field {
+  margin-top: 6px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+}
+
+.rpg-brain-equipment-label {
+  font-size: 0.8em;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 4px;
+  font-weight: bold;
+}
+
+.rpg-brain-equipment-slot {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+  font-size: 0.83em;
+}
+
+.rpg-brain-equipment-slot-name {
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: capitalize;
+}
+
+.rpg-brain-equipment-slot-value {
+  color: #f0a500;
+}
+
+/* Resource-Balken Label */
+.rpg-brain-bar-label {
+  font-size: 0.8em;
+  color: rgba(255, 255, 255, 0.6);
+  min-width: 45px;
+  flex-shrink: 0;
+}
+
+/* Inline-Edit Input */
+.rpg-brain-inline-edit {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(78, 204, 163, 0.5);
+  border-radius: 3px;
+  color: #fff;
+  font-size: inherit;
+  padding: 1px 4px;
+  width: 100%;
+  max-width: 120px;
+  outline: none;
+}
+
+.rpg-brain-inline-edit:focus {
+  border-color: #4ecca3;
+  box-shadow: 0 0 4px rgba(78, 204, 163, 0.3);
+}

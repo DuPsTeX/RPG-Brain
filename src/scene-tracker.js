@@ -1,19 +1,23 @@
-// scene-tracker.js — Trackt die aktuelle Szene (Ort, anwesende Charaktere, Quest-Status)
-// Hybrid-Ansatz: Schnelles Pattern-Matching (immer) + optionaler LLM-Call (wenn verfügbar)
+// scene-tracker.js — Trackt die aktuelle Szene (Ort, anwesende Charaktere, Gruppen-Stats)
+// Hybrid-Ansatz: JSON <scene> Block (primär) + Pattern-Matching Fallback
 
 export class SceneTracker {
   /**
    * @param {EntityManager} entityManager
    * @param {Function} getSettings
+   * @param {PartyManager} [partyManager]
    */
-  constructor(entityManager, getSettings) {
+  constructor(entityManager, getSettings, partyManager) {
     this.entityManager = entityManager;
     this._getSettings = getSettings;
+    this.partyManager = partyManager || null;
 
     // Aktuelle Szene
     this._currentScene = {
       ort: null,           // Name des aktuellen Orts
       anwesende: [],       // Namen der anwesenden Charaktere
+      gruppe: [],          // Gruppenmitglieder (LLM-Vorschlag)
+      status: {},          // Charakter-Stats: { "Name": { hp: "45/100", ... } }
       questUpdates: [],    // [{name, status}] — Quest-Änderungen
       messageIndex: -1,    // Zu welcher Nachricht gehört diese Szene
     };
@@ -83,6 +87,16 @@ export class SceneTracker {
         ? sceneFromBlock.anwesende
         : (patternResult?.anwesende?.length > 0 ? patternResult.anwesende : this._currentScene.anwesende);
       const questUpdates = sceneFromBlock?.questUpdates || [];
+      const newGruppe = sceneFromBlock?.gruppe || this._currentScene.gruppe || [];
+      const newStatus = sceneFromBlock?.status || this._currentScene.status || {};
+
+      // Party Manager aktualisieren
+      if (this.partyManager && newGruppe.length > 0) {
+        this.partyManager.updateFromScene(newGruppe);
+      }
+
+      // Status nur für Party-Mitglieder behalten
+      const filteredStatus = this._filterStatusByParty(newStatus);
 
       // Alte Szene in History pushen
       this._pushHistory();
@@ -91,6 +105,8 @@ export class SceneTracker {
       this._currentScene = {
         ort: newOrt,
         anwesende: newAnwesende,
+        gruppe: newGruppe,
+        status: filteredStatus,
         questUpdates,
         messageIndex,
       };
@@ -101,7 +117,8 @@ export class SceneTracker {
       this._persist();
 
       const source = sceneFromBlock ? 'LLM <scene>' : 'Pattern';
-      console.log(`[RPG-Brain] Szene (${source}): Ort="${this._currentScene.ort}", Anwesende=[${this._currentScene.anwesende.join(', ')}]`);
+      const statusKeys = Object.keys(filteredStatus);
+      console.log(`[RPG-Brain] Szene (${source}): Ort="${this._currentScene.ort}", Anwesende=[${this._currentScene.anwesende.join(', ')}], Gruppe=[${newGruppe.join(', ')}], Stats=[${statusKeys.join(', ')}]`);
 
     } catch (err) {
       console.warn('[RPG-Brain] Szene-Analyse fehlgeschlagen:', err.message);
@@ -112,11 +129,18 @@ export class SceneTracker {
 
   /**
    * Parst den <scene> Block aus einer LLM-Antwort.
-   * Format:
+   * Unterstützt JSON-Format (primär) und Key-Value-Format (Fallback).
+   *
+   * JSON-Format:
    * <scene>
-   * ort: Abenteurergilde von Aurion
-   * anwesende: Tay, Lysandra, Nyx, Elara
-   * quest_updates: Bürgschaft=abgeschlossen
+   * {"ort":"Taverne","anwesende":["Kael","Mira"],"gruppe":["Kael","Mira"],"status":{"Kael":{"hp":"45/100"}},"quest_updates":[]}
+   * </scene>
+   *
+   * Key-Value Fallback (Rückwärtskompatibilität):
+   * <scene>
+   * ort: Taverne
+   * anwesende: Kael, Mira
+   * quest_updates:
    * </scene>
    */
   _parseSceneBlock(messageText) {
@@ -126,7 +150,150 @@ export class SceneTracker {
     if (!sceneMatch) return null;
 
     const block = sceneMatch[1].trim();
-    const result = { ort: null, anwesende: [], questUpdates: [] };
+
+    // Versuch 1: JSON parsen
+    const jsonResult = this._parseJsonScene(block);
+    if (jsonResult) return jsonResult;
+
+    // Versuch 2: Key-Value Fallback (altes Format)
+    return this._parseKeyValueScene(block);
+  }
+
+  /**
+   * Versucht den Block als JSON zu parsen. Bei Fehlern wird repariert.
+   * Fallback-Kette: direktes Parse → Repair → null
+   */
+  _parseJsonScene(block) {
+    // Nur versuchen wenn es wie JSON aussieht
+    if (!block.includes('{')) return null;
+
+    let parsed = null;
+
+    // Versuch 1: Direktes JSON.parse
+    try {
+      parsed = JSON.parse(block);
+    } catch (e) {
+      // Versuch 2: JSON reparieren
+      parsed = this._repairAndParseJson(block);
+    }
+
+    if (!parsed || typeof parsed !== 'object') return null;
+
+    // JSON-Objekt in Scene-Format konvertieren
+    const result = {
+      ort: null,
+      anwesende: [],
+      gruppe: [],
+      status: {},
+      questUpdates: [],
+    };
+
+    // ort
+    if (typeof parsed.ort === 'string' && parsed.ort.trim()) {
+      result.ort = parsed.ort.trim();
+    }
+
+    // anwesende
+    if (Array.isArray(parsed.anwesende)) {
+      result.anwesende = parsed.anwesende.map(n => String(n).trim()).filter(Boolean);
+    }
+
+    // gruppe
+    if (Array.isArray(parsed.gruppe)) {
+      result.gruppe = parsed.gruppe.map(n => String(n).trim()).filter(Boolean);
+    }
+
+    // status — nur wenn es ein Objekt ist
+    if (parsed.status && typeof parsed.status === 'object' && !Array.isArray(parsed.status)) {
+      try {
+        for (const [charName, stats] of Object.entries(parsed.status)) {
+          if (stats && typeof stats === 'object' && !Array.isArray(stats)) {
+            result.status[charName] = stats;
+          }
+        }
+      } catch (e) {
+        console.debug('[RPG-Brain] Status-Parsing teilweise fehlgeschlagen, ignoriere status');
+      }
+    }
+
+    // quest_updates — Array von {name, status}
+    if (Array.isArray(parsed.quest_updates)) {
+      for (const qu of parsed.quest_updates) {
+        if (qu && typeof qu === 'object' && qu.name && qu.status) {
+          result.questUpdates.push({ name: qu.name, status: qu.status });
+        }
+      }
+    }
+
+    // Validierung
+    if (!result.ort && result.anwesende.length === 0) return null;
+
+    console.debug('[RPG-Brain] Scene JSON geparst:', JSON.stringify(result).substring(0, 200));
+    return result;
+  }
+
+  /**
+   * Versucht kaputtes JSON zu reparieren.
+   * Häufige LLM-Fehler: Trailing Commas, Single Quotes, unquoted Keys, abgeschnitten.
+   */
+  _repairAndParseJson(raw) {
+    let text = raw;
+
+    try {
+      // 1. Trailing Commas entfernen: ,} oder ,]
+      text = text.replace(/,\s*([}\]])/g, '$1');
+
+      // 2. Single Quotes → Double Quotes (einfache Heuristik)
+      // Nur wenn keine Double-Quotes vorhanden sind
+      if (!text.includes('"') && text.includes("'")) {
+        text = text.replace(/'/g, '"');
+      }
+
+      // 3. Unquoted Keys: {key: oder ,key:
+      text = text.replace(/([{,]\s*)([a-zA-Z_äöüÄÖÜß][a-zA-Z0-9_äöüÄÖÜß]*)\s*:/g, '$1"$2":');
+
+      // Versuch mit repariertem Text
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        // Weiter versuchen
+      }
+
+      // 4. Abgeschnittenes JSON: offene Klammern/Braces schließen
+      let repaired = text;
+      const opens = (repaired.match(/[{[]/g) || []).length;
+      const closes = (repaired.match(/[}\]]/g) || []).length;
+      if (opens > closes) {
+        // Am Ende fehlende Klammern ergänzen, einfache Heuristik
+        const stack = [];
+        for (const ch of repaired) {
+          if (ch === '{') stack.push('}');
+          else if (ch === '[') stack.push(']');
+          else if (ch === '}' || ch === ']') stack.pop();
+        }
+        // Trailing Komma vor Schließung entfernen
+        repaired = repaired.replace(/,\s*$/, '');
+        repaired += stack.reverse().join('');
+
+        try {
+          return JSON.parse(repaired);
+        } catch (e) {
+          // Aufgeben
+        }
+      }
+    } catch (e) {
+      console.debug('[RPG-Brain] JSON-Reparatur fehlgeschlagen:', e.message);
+    }
+
+    return null;
+  }
+
+  /**
+   * Fallback: Key-Value Format parsen (Rückwärtskompatibilität).
+   * ort: ...\n anwesende: ...\n quest_updates: ...
+   */
+  _parseKeyValueScene(block) {
+    const result = { ort: null, anwesende: [], gruppe: [], status: {}, questUpdates: [] };
 
     for (const line of block.split('\n')) {
       const trimmed = line.trim();
@@ -142,8 +309,9 @@ export class SceneTracker {
         result.ort = value;
       } else if (key === 'anwesende' && value) {
         result.anwesende = value.split(',').map(n => n.trim()).filter(Boolean);
+      } else if (key === 'gruppe' && value) {
+        result.gruppe = value.split(',').map(n => n.trim()).filter(Boolean);
       } else if (key === 'quest_updates' && value) {
-        // Format: "Questname=abgeschlossen, Andere Quest=fehlgeschlagen"
         const updates = value.split(',').map(u => u.trim()).filter(Boolean);
         for (const update of updates) {
           const eqIdx = update.indexOf('=');
@@ -157,10 +325,27 @@ export class SceneTracker {
       }
     }
 
-    // Validierung: mindestens Ort oder Anwesende müssen gesetzt sein
     if (!result.ort && result.anwesende.length === 0) return null;
 
+    console.debug('[RPG-Brain] Scene Key-Value Fallback geparst');
     return result;
+  }
+
+  /**
+   * Filtert Status-Einträge: Nur Party-Mitglieder behalten.
+   * Wenn kein Party Manager vorhanden, alles behalten.
+   */
+  _filterStatusByParty(status) {
+    if (!status || typeof status !== 'object') return {};
+    if (!this.partyManager) return status;
+
+    const filtered = {};
+    for (const [name, stats] of Object.entries(status)) {
+      if (this.partyManager.isPartyMember(name)) {
+        filtered[name] = stats;
+      }
+    }
+    return filtered;
   }
 
   /**
@@ -303,9 +488,17 @@ export class SceneTracker {
     while (this._history.length > 0) {
       const prev = this._history[this._history.length - 1];
       if (prev.messageIndex < remainingCount) {
-        this._currentScene = { ...prev };
+        // Migration: alte History-Einträge ohne gruppe/status ergänzen
+        this._currentScene = {
+          ort: prev.ort || null,
+          anwesende: prev.anwesende || [],
+          gruppe: prev.gruppe || [],
+          status: prev.status || {},
+          questUpdates: prev.questUpdates || [],
+          messageIndex: prev.messageIndex ?? -1,
+        };
         this._persist();
-        console.log(`[RPG-Brain] Szene zurückgesetzt auf Index ${prev.messageIndex}: Ort="${prev.ort}", Anwesende=[${prev.anwesende.join(', ')}]`);
+        console.log(`[RPG-Brain] Szene zurückgesetzt auf Index ${prev.messageIndex}: Ort="${prev.ort}", Anwesende=[${(prev.anwesende || []).join(', ')}]`);
         return;
       }
       this._history.pop();
@@ -314,6 +507,8 @@ export class SceneTracker {
     this._currentScene = {
       ort: null,
       anwesende: [],
+      gruppe: [],
+      status: {},
       questUpdates: [],
       messageIndex: -1,
     };
@@ -329,11 +524,19 @@ export class SceneTracker {
     const metadata = context?.chatMetadata;
 
     if (metadata?.rpgBrainScene) {
-      this._currentScene = { ...metadata.rpgBrainScene };
+      const saved = metadata.rpgBrainScene;
+      this._currentScene = {
+        ort: saved.ort || null,
+        anwesende: saved.anwesende || [],
+        gruppe: saved.gruppe || [],
+        status: saved.status || {},
+        questUpdates: saved.questUpdates || [],
+        messageIndex: saved.messageIndex ?? -1,
+      };
       this._history = metadata.rpgBrainSceneHistory || [];
-      console.log(`[RPG-Brain] Szene geladen: Ort="${this._currentScene.ort}", Anwesende=[${this._currentScene.anwesende.join(', ')}]`);
+      console.log(`[RPG-Brain] Szene geladen: Ort="${this._currentScene.ort}", Anwesende=[${this._currentScene.anwesende.join(', ')}], Gruppe=[${this._currentScene.gruppe.join(', ')}]`);
     } else {
-      this._currentScene = { ort: null, anwesende: [], questUpdates: [], messageIndex: -1 };
+      this._currentScene = { ort: null, anwesende: [], gruppe: [], status: {}, questUpdates: [], messageIndex: -1 };
       this._history = [];
     }
   }

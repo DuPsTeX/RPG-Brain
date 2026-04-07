@@ -6,11 +6,13 @@ import { renderEntityCard } from './components/entity-card.js';
 import { renderEntityForm } from './components/entity-form.js';
 
 export class Tabs {
-  constructor(entityManager, registry, promptInjector, sceneTracker) {
+  constructor(entityManager, registry, promptInjector, sceneTracker, partyManager, getSettings) {
     this.entityManager = entityManager;
     this.registry = registry;
     this.promptInjector = promptInjector;
     this.sceneTracker = sceneTracker;
+    this.partyManager = partyManager || null;
+    this._getSettings = getSettings || (() => ({}));
   }
 
   /**
@@ -36,13 +38,25 @@ export class Tabs {
   _renderSzene(container) {
     const scene = this.sceneTracker?.getCurrentScene();
     const anwesendeLower = (scene?.anwesende || []).map(n => n.toLowerCase());
+    const settings = this._getSettings();
+
+    // Template-Felder für Stats laden
+    let templateFields = null;
+    try {
+      // Dynamischer Import vermeiden — getTemplateFields wird über Settings geladen
+      if (settings.statsEnabled !== false && this._templateFields) {
+        templateFields = this._templateFields;
+      }
+    } catch (e) { /* ignore */ }
 
     // Szene-Info Header
     if (scene?.ort) {
+      const gruppeInfo = scene.gruppe?.length > 0 ? `<div class="rpg-brain-scene-group">⚔️ Gruppe: ${scene.gruppe.join(', ')}</div>` : '';
       container.append(`
         <div class="rpg-brain-scene-info">
           <div class="rpg-brain-scene-location">📍 ${scene.ort}</div>
           <div class="rpg-brain-scene-present">👥 ${scene.anwesende.join(', ') || 'Niemand erkannt'}</div>
+          ${gruppeInfo}
         </div>
       `);
     }
@@ -62,22 +76,58 @@ export class Tabs {
       container.append(renderEntityCard(currentOrt, this.registry.getType('ort')));
     }
 
-    // Charaktere: Anwesende zuerst, markiert
+    // Charaktere: Gruppe zuerst, dann anwesende Nicht-Gruppe, dann abwesend
     const chars = this.entityManager.getEntitiesByType('charakter');
     if (chars.length > 0) {
-      const presentChars = chars.filter(c => anwesendeLower.includes(c.data.name?.toLowerCase()));
-      const absentChars = chars.filter(c => !anwesendeLower.includes(c.data.name?.toLowerCase()));
+      const partyChars = [];
+      const presentNonParty = [];
+      const absentChars = [];
 
-      if (presentChars.length > 0) {
-        container.append(this._sectionHeader('🧙', `In der Szene (${presentChars.length})`));
-        for (const char of presentChars) {
-          container.append(renderCharacterCard(char, true));
+      for (const char of chars) {
+        const nameLower = char.data.name?.toLowerCase();
+        const isPresent = anwesendeLower.includes(nameLower);
+        const isParty = this.partyManager?.isPartyMember(char.data.name);
+
+        if (isParty && isPresent) {
+          partyChars.push(char);
+        } else if (isPresent) {
+          presentNonParty.push(char);
+        } else {
+          absentChars.push(char);
         }
       }
+
+      // Gruppen-Mitglieder mit vollen Stats
+      if (partyChars.length > 0) {
+        container.append(this._sectionHeader('⚔️', `Gruppe (${partyChars.length})`));
+        for (const char of partyChars) {
+          const charStatus = scene?.status?.[char.data.name] || null;
+          container.append(renderCharacterCard(char, true, {
+            sceneStatus: charStatus,
+            isPartyMember: true,
+            templateFields: charStatus ? templateFields : null,
+          }));
+        }
+      }
+
+      // Anwesende Nicht-Gruppen-Mitglieder
+      if (presentNonParty.length > 0) {
+        container.append(this._sectionHeader('🧙', `In der Szene (${presentNonParty.length})`));
+        for (const char of presentNonParty) {
+          container.append(renderCharacterCard(char, true, {
+            isPartyMember: false,
+          }));
+        }
+      }
+
+      // Abwesende
       if (absentChars.length > 0) {
         container.append(this._sectionHeader('👤', `Nicht anwesend (${absentChars.length})`));
         for (const char of absentChars) {
-          container.append(renderCharacterCard(char, false));
+          const isParty = this.partyManager?.isPartyMember(char.data.name);
+          container.append(renderCharacterCard(char, false, {
+            isPartyMember: isParty || undefined,
+          }));
         }
       }
     }
@@ -302,6 +352,14 @@ export class Tabs {
       console.error('[RPG-Brain] Formular-Fehler:', err.message);
       alert(err.message);
     }
+  }
+
+  /**
+   * Template-Felder für die Stats-Anzeige setzen (aufgerufen beim Wiring).
+   * @param {Array} fields - Feld-Definitionen aus dem aktiven Template
+   */
+  setTemplateFields(fields) {
+    this._templateFields = fields;
   }
 
   // --- Helpers ---
