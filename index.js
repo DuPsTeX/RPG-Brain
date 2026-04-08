@@ -9,6 +9,7 @@ import { PromptInjector } from './src/prompt-injector.js';
 import { SceneTracker } from './src/scene-tracker.js';
 import { PartyManager } from './src/party-manager.js';
 import { getActiveTemplate, getTemplateFields, PRESET_TEMPLATES } from './src/stat-templates.js';
+import { getDefaultExtractionPromptTemplate } from './src/extraction-prompts.js';
 import { RPGBrainPanel } from './src/panel/panel.js';
 import { initI18n, setLocale } from './src/i18n/i18n-loader.js';
 
@@ -45,6 +46,8 @@ const DEFAULT_SETTINGS = {
   statsEnabled: true,
   statTemplate: 'dnd',
   statTemplateCustom: null,
+  customSceneInstruction: null,
+  customExtractionPrompt: null,
 };
 
 // --- Settings Persistence ---
@@ -76,6 +79,22 @@ function applySettingsToUI() {
   $('#rpg-brain-stats-enabled').prop('checked', settings.statsEnabled !== false);
   $('#rpg-brain-stat-template').val(settings.statTemplate || 'dnd');
   updateTemplateInfo();
+
+  // Custom Prompts in Textareas laden (oder Default anzeigen)
+  const sceneTpl = settings.customSceneInstruction || getDefaultSceneTemplate(settings);
+  $('#rpg-brain-custom-scene-prompt').val(sceneTpl);
+  const extractionTpl = settings.customExtractionPrompt || getDefaultExtractionPromptTemplate(settings.language || 'de');
+  $('#rpg-brain-custom-extraction-prompt').val(extractionTpl);
+}
+
+/**
+ * Default Scene-Instruction Template für die UI-Anzeige.
+ */
+function getDefaultSceneTemplate(settings) {
+  const template = getActiveTemplate(settings);
+  const fields = template.fields || [];
+  const withStats = settings.statsEnabled !== false && fields.length > 0;
+  return PromptInjector.getDefaultSceneInstructionTemplate(settings.language || 'de', withStats);
 }
 
 function readSettingsFromUI() {
@@ -362,6 +381,38 @@ function bindSettingsEvents() {
     readSettingsFromUI();
     updateTemplateInfo();
     panel.refresh();
+  });
+
+  // Custom Prompts: Scene-Injection
+  $(document).on('click', '#rpg-brain-scene-prompt-reset', () => {
+    const settings = getSettings();
+    settings.customSceneInstruction = null;
+    $('#rpg-brain-custom-scene-prompt').val(getDefaultSceneTemplate(settings));
+    saveSettings();
+    updateInjection();
+  });
+  $(document).on('click', '#rpg-brain-scene-prompt-save', () => {
+    const settings = getSettings();
+    const value = $('#rpg-brain-custom-scene-prompt').val() || '';
+    settings.customSceneInstruction = value.trim() || null;
+    saveSettings();
+    updateInjection();
+    toastr?.success?.('Scene-Prompt gespeichert');
+  });
+
+  // Custom Prompts: Extraktion
+  $(document).on('click', '#rpg-brain-extraction-prompt-reset', () => {
+    const settings = getSettings();
+    settings.customExtractionPrompt = null;
+    $('#rpg-brain-custom-extraction-prompt').val(getDefaultExtractionPromptTemplate(settings.language || 'de'));
+    saveSettings();
+  });
+  $(document).on('click', '#rpg-brain-extraction-prompt-save', () => {
+    const settings = getSettings();
+    const value = $('#rpg-brain-custom-extraction-prompt').val() || '';
+    settings.customExtractionPrompt = value.trim() || null;
+    saveSettings();
+    toastr?.success?.('Extraktions-Prompt gespeichert');
   });
 
   // Party-Badge Klick im Panel

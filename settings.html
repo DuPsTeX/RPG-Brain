@@ -93,6 +93,50 @@
         </select>
       </div>
 
+      <!-- Custom Prompts -->
+      <div class="rpg-brain-section">
+        <h4>Prompts anpassen</h4>
+        <small class="rpg-brain-hint">
+          Du kannst die Prompts für Scene-Injection und Extraktion überschreiben.
+          Platzhalter bleiben erhalten und werden zur Laufzeit ersetzt.
+        </small>
+
+        <details class="rpg-brain-prompt-details">
+          <summary><b>Scene-Injection Prompt</b> (Anweisung an das Chat-LLM)</summary>
+          <small class="rpg-brain-hint">
+            Platzhalter: <code>{{example}}</code> (JSON-Beispiel), <code>{{fields}}</code> (Feld-Beschreibungen)
+          </small>
+          <textarea id="rpg-brain-custom-scene-prompt" class="text_pole rpg-brain-prompt-textarea"
+                    rows="14" placeholder="Leer lassen für Default..."></textarea>
+          <div class="rpg-brain-prompt-actions">
+            <button id="rpg-brain-scene-prompt-reset" class="menu_button" type="button" title="Default laden">
+              <i class="fa-solid fa-rotate-left"></i> Default laden
+            </button>
+            <button id="rpg-brain-scene-prompt-save" class="menu_button" type="button" title="Custom Prompt speichern">
+              <i class="fa-solid fa-floppy-disk"></i> Speichern
+            </button>
+          </div>
+        </details>
+
+        <details class="rpg-brain-prompt-details">
+          <summary><b>Extraktions Prompt</b> (Anweisung an das Extraktions-LLM)</summary>
+          <small class="rpg-brain-hint">
+            Platzhalter: <code>{{type_schemas}}</code>, <code>{{known_names}}</code>,
+            <code>{{type_reminder}}</code>, <code>{{message_text}}</code>
+          </small>
+          <textarea id="rpg-brain-custom-extraction-prompt" class="text_pole rpg-brain-prompt-textarea"
+                    rows="18" placeholder="Leer lassen für Default..."></textarea>
+          <div class="rpg-brain-prompt-actions">
+            <button id="rpg-brain-extraction-prompt-reset" class="menu_button" type="button" title="Default laden">
+              <i class="fa-solid fa-rotate-left"></i> Default laden
+            </button>
+            <button id="rpg-brain-extraction-prompt-save" class="menu_button" type="button" title="Custom Prompt speichern">
+              <i class="fa-solid fa-floppy-disk"></i> Speichern
+            </button>
+          </div>
+        </details>
+      </div>
+
       <!-- Aktionen -->
       <div class="rpg-brain-section rpg-brain-actions">
         <button id="rpg-brain-extract-now" class="menu_button" title="Chat jetzt analysieren">

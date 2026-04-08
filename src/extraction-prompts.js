@@ -11,69 +11,34 @@
  * @param {Array} activeTypes - Array von {id, name, icon} für dynamische Typ-Regeln
  * @returns {string} Der vollständige Extraktions-Prompt
  */
-export function buildExtractionPrompt(messageText, typeSchemas, knownNames, language = 'de', activeTypes = []) {
-  const knownSection = formatKnownNames(knownNames);
+export function buildExtractionPrompt(messageText, typeSchemas, knownNames, language = 'de', activeTypes = [], customTemplate = null) {
+  const knownSection = formatKnownNames(knownNames) || (language === 'en' ? 'No known entities.' : 'Keine bekannten Entities.');
   const typeReminder = buildTypeReminder(activeTypes, language);
 
+  const template = (customTemplate && typeof customTemplate === 'string' && customTemplate.trim())
+    ? customTemplate
+    : getDefaultExtractionPromptTemplate(language);
+
+  return template
+    .replace(/\{\{type_schemas\}\}/g, typeSchemas || '')
+    .replace(/\{\{known_names\}\}/g, knownSection)
+    .replace(/\{\{type_reminder\}\}/g, typeReminder || '')
+    .replace(/\{\{message_text\}\}/g, messageText || '');
+}
+
+/**
+ * Default-Template für den Extraktions-Prompt mit Platzhaltern:
+ * - {{type_schemas}}, {{known_names}}, {{type_reminder}}, {{message_text}}
+ */
+export function getDefaultExtractionPromptTemplate(language = 'de') {
   if (language === 'en') {
-    return buildEnglishPrompt(messageText, typeSchemas, knownSection, typeReminder);
-  }
-  return buildGermanPrompt(messageText, typeSchemas, knownSection, typeReminder);
-}
-
-function buildGermanPrompt(messageText, typeSchemas, knownSection, typeReminder) {
-  return `Du bist ein RPG-Analyse-System. Analysiere den folgenden Chat-Text und extrahiere alle relevanten RPG-Entities.
-
-## Verfügbare Entity-Typen
-${typeSchemas}
-
-## Bereits bekannte Entities
-${knownSection || 'Keine bekannten Entities.'}
-
-## Regeln
-1. Extrahiere NEUE Entities die noch nicht bekannt sind (action: "create")
-2. Erkenne UPDATES zu bekannten Entities (action: "update") — z.B. HP-Änderungen, neue Items, Beziehungsänderungen
-3. Für Updates: gib nur die geänderten Felder an, nicht alle
-4. Setze "confidence" zwischen 0.0 und 1.0 (wie sicher bist du?)
-5. Bei Beziehungen: extrahiere BEIDE Richtungen wenn erkennbar
-6. Inventar-Änderungen: wenn ein Charakter ein Item erhält oder verliert
-7. Status-Änderungen: HP, Hunger, Durst, Sauberkeit, Erregung wenn beschrieben
-8. Wichtige narrative Infos (Versprechen, Geheimnisse, Pläne) gehören in das "wichtig" Feld
-9. QUESTS: Erkenne auch IMPLIZITE Aufträge, Ziele, Missionen, Versprechen
-10. RÜCKBLICK: Erstelle IMMER genau einen Rückblick (type: "rueckblick") der die analysierten Nachrichten zusammenfasst
-
-## WICHTIG: Nutze ALLE Entity-Typen!
-Prüfe für JEDEN der folgenden Typen ob er in den Nachrichten vorkommt:
-${typeReminder}
-Ignoriere KEINEN Typ! Jeder erwähnte Gegenstand, Ort, NPC, Quest etc. muss als Entity erfasst werden.
-
-## Antwort-Format
-Antworte NUR mit einem JSON-Array. Keine Erklärungen, kein Markdown.
-
-[
-  {
-    "type": "entity_typ_id",
-    "action": "create" oder "update",
-    "name": "Name der Entity (für update-Matching)",
-    "data": { "feld1": "wert1", "feld2": "wert2" },
-    "confidence": 0.9
-  }
-]
-
-Falls keine Entities erkannt werden, antworte mit: []
-
-## Chat-Text zu analysieren
-${messageText}`;
-}
-
-function buildEnglishPrompt(messageText, typeSchemas, knownSection, typeReminder) {
-  return `You are an RPG analysis system. Analyze the following chat text and extract all relevant RPG entities.
+    return `You are an RPG analysis system. Analyze the following chat text and extract all relevant RPG entities.
 
 ## Available Entity Types
-${typeSchemas}
+{{type_schemas}}
 
 ## Already Known Entities
-${knownSection || 'No known entities.'}
+{{known_names}}
 
 ## Rules
 1. Extract NEW entities not yet known (action: "create")
@@ -89,7 +54,7 @@ ${knownSection || 'No known entities.'}
 
 ## IMPORTANT: Use ALL entity types!
 Check for EACH of the following types whether it appears in the messages:
-${typeReminder}
+{{type_reminder}}
 Do NOT ignore any type! Every mentioned object, location, NPC, quest etc. must be captured as an entity.
 
 ## Response Format
@@ -108,7 +73,51 @@ Respond ONLY with a JSON array. No explanations, no markdown.
 If no entities are detected, respond with: []
 
 ## Chat Text to Analyze
-${messageText}`;
+{{message_text}}`;
+  }
+
+  return `Du bist ein RPG-Analyse-System. Analysiere den folgenden Chat-Text und extrahiere alle relevanten RPG-Entities.
+
+## Verfügbare Entity-Typen
+{{type_schemas}}
+
+## Bereits bekannte Entities
+{{known_names}}
+
+## Regeln
+1. Extrahiere NEUE Entities die noch nicht bekannt sind (action: "create")
+2. Erkenne UPDATES zu bekannten Entities (action: "update") — z.B. HP-Änderungen, neue Items, Beziehungsänderungen
+3. Für Updates: gib nur die geänderten Felder an, nicht alle
+4. Setze "confidence" zwischen 0.0 und 1.0 (wie sicher bist du?)
+5. Bei Beziehungen: extrahiere BEIDE Richtungen wenn erkennbar
+6. Inventar-Änderungen: wenn ein Charakter ein Item erhält oder verliert
+7. Status-Änderungen: HP, Hunger, Durst, Sauberkeit, Erregung wenn beschrieben
+8. Wichtige narrative Infos (Versprechen, Geheimnisse, Pläne) gehören in das "wichtig" Feld
+9. QUESTS: Erkenne auch IMPLIZITE Aufträge, Ziele, Missionen, Versprechen
+10. RÜCKBLICK: Erstelle IMMER genau einen Rückblick (type: "rueckblick") der die analysierten Nachrichten zusammenfasst
+
+## WICHTIG: Nutze ALLE Entity-Typen!
+Prüfe für JEDEN der folgenden Typen ob er in den Nachrichten vorkommt:
+{{type_reminder}}
+Ignoriere KEINEN Typ! Jeder erwähnte Gegenstand, Ort, NPC, Quest etc. muss als Entity erfasst werden.
+
+## Antwort-Format
+Antworte NUR mit einem JSON-Array. Keine Erklärungen, kein Markdown.
+
+[
+  {
+    "type": "entity_typ_id",
+    "action": "create" oder "update",
+    "name": "Name der Entity (für update-Matching)",
+    "data": { "feld1": "wert1", "feld2": "wert2" },
+    "confidence": 0.9
+  }
+]
+
+Falls keine Entities erkannt werden, antworte mit: []
+
+## Chat-Text zu analysieren
+{{message_text}}`;
 }
 
 /**

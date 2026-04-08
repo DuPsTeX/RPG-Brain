@@ -85,7 +85,7 @@ export class ExtractionTrigger {
       const typeSchemas = this.registry.getTypeSchemasForPrompt();
       const knownNames = this.entityManager.getKnownNames();
       const activeTypes = this.registry.getAllTypes(true).map(t => ({ id: t.id, name: t.name, icon: t.icon }));
-      const prompt = buildExtractionPrompt(messageText, typeSchemas, knownNames, settings.language, activeTypes);
+      const prompt = buildExtractionPrompt(messageText, typeSchemas, knownNames, settings.language, activeTypes, settings.customExtractionPrompt);
 
       const llmResponse = await this._callExtractionLlm(prompt, settings);
       if (!llmResponse) {

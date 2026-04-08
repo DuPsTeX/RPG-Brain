@@ -131,8 +131,8 @@ export class PromptInjector {
 
   /**
    * Baut die Scene-Tracker Anweisung für das Chat-LLM.
-   * Generiert dynamisch basierend auf dem aktiven Stat-Template.
-   * Das LLM generiert am Anfang jeder Antwort einen unsichtbaren <scene> JSON Block.
+   * Nutzt entweder ein Custom-Template (settings.customSceneInstruction) oder
+   * das Default-Template. Beide unterstützen Platzhalter {{example}} und {{fields}}.
    */
   _buildSceneInstruction(language) {
     const settings = this._getSettings();
@@ -140,67 +140,74 @@ export class PromptInjector {
     const template = getActiveTemplate(settings);
     const fields = template.fields || [];
 
-    // Beispiel-Status für die Instruktion generieren
+    // Beispiel-JSON bauen
     const exampleStatus = (statsEnabled && fields.length > 0) ? buildExampleStatus(fields) : null;
-
-    // Kompaktes JSON-Beispiel
     const example = { ort: '...', anwesende: ['Char1', 'Char2', 'NPC1'], gruppe: ['Char1', 'Char2'] };
     if (exampleStatus) {
       example.status = { Char1: exampleStatus, Char2: { [fields[0]?.key || 'hp']: fields[0]?.default || '100/100' } };
     }
     example.quest_updates = [];
-
     const exampleJson = JSON.stringify(example);
 
-    // Feld-Beschreibungen für die Instruktion
     const fieldDesc = (statsEnabled && fields.length > 0) ? buildFieldDescription(fields, language) : '';
 
+    // Custom oder Default Template wählen
+    const customTemplate = settings.customSceneInstruction;
+    const baseTemplate = (customTemplate && typeof customTemplate === 'string' && customTemplate.trim())
+      ? customTemplate
+      : PromptInjector.getDefaultSceneInstructionTemplate(language, statsEnabled && fields.length > 0);
+
+    // Platzhalter ersetzen
+    return baseTemplate
+      .replace(/\{\{example\}\}/g, exampleJson)
+      .replace(/\{\{fields\}\}/g, fieldDesc);
+  }
+
+  /**
+   * Default-Template für die Szene-Instruktion. Enthält Platzhalter:
+   * - {{example}}: JSON-Beispiel
+   * - {{fields}}: Feld-Beschreibungen (nur wenn Stats aktiv)
+   */
+  static getDefaultSceneInstructionTemplate(language = 'de', withStats = true) {
     if (language === 'en') {
-      let instruction = `[SCENE TRACKER - MANDATORY]
+      let tpl = `[SCENE TRACKER - MANDATORY]
 Start EVERY response with this JSON block BEFORE any other text (hidden from user):
 <scene>
-${exampleJson}
+{{example}}
 </scene>
 Rules:
 - ort: Current location name
 - anwesende: ALL characters physically present in the scene RIGHT NOW
 - gruppe: Only official party/travel companions of the player`;
-
-      if (statsEnabled && fields.length > 0) {
-        instruction += `
+      if (withStats) {
+        tpl += `
 - status: Stats ONLY for gruppe members. Fields:
-${fieldDesc}`;
+{{fields}}`;
       }
-
-      instruction += `
+      tpl += `
 - quest_updates: Only on status change: [{"name":"...","status":"completed|failed"}]
 - Valid JSON! The <scene> block MUST be the FIRST thing in your response. NEVER skip it.`;
-
-      return instruction;
+      return tpl;
     }
 
-    // Deutsch (Default)
-    let instruction = `[SZENE-TRACKER — PFLICHT]
+    let tpl = `[SZENE-TRACKER — PFLICHT]
 Beginne JEDE Antwort mit diesem JSON-Block BEVOR du irgendetwas anderes schreibst (wird dem User nicht angezeigt):
 <scene>
-${exampleJson}
+{{example}}
 </scene>
 Regeln:
 - ort: Aktueller Ortsname
 - anwesende: ALLE Charaktere die JETZT GERADE physisch in der Szene sind
 - gruppe: Nur offizielle Reisegefährten/Party-Mitglieder des Spielers`;
-
-    if (statsEnabled && fields.length > 0) {
-      instruction += `
+    if (withStats) {
+      tpl += `
 - status: Stats NUR für gruppe-Mitglieder. Felder:
-${fieldDesc}`;
+{{fields}}`;
     }
-
-    instruction += `
+    tpl += `
 - quest_updates: Nur bei Statusänderung: [{"name":"...","status":"abgeschlossen|fehlgeschlagen"}]
 - Valides JSON! Der <scene> Block MUSS das ERSTE in deiner Antwort sein. NIE weglassen.`;
-
-    return instruction;
+    return tpl;
   }
 
   /**
