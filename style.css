@@ -875,6 +875,59 @@ scene,
   font-weight: 600;
 }
 
+/* RPG-Attribute (STR/DEX/CON/INT/WIS/CHA) — feste, kompakte Grid-Anzeige */
+.rpg-brain-attributes-block {
+  margin: 6px 0;
+  padding: 6px 8px;
+  border: 1px solid rgba(199, 125, 255, 0.25);
+  border-radius: 6px;
+  background: rgba(199, 125, 255, 0.06);
+}
+
+.rpg-brain-attributes-label {
+  font-size: 0.75em;
+  color: rgba(255, 255, 255, 0.55);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.rpg-brain-attributes-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+}
+
+.rpg-brain-attr-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 3px 2px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 4px;
+  min-width: 0;
+}
+
+.rpg-brain-attr-label {
+  font-size: 0.65em;
+  font-weight: 700;
+  color: rgba(199, 125, 255, 0.9);
+  letter-spacing: 0.5px;
+}
+
+.rpg-brain-attr-value {
+  font-size: 1em;
+  font-weight: 700;
+  color: #ffffff;
+  margin-top: 1px;
+}
+
+@media (max-width: 480px) {
+  .rpg-brain-attributes-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
 /* Resource-Balken Label */
 .rpg-brain-bar-label {
   font-size: 0.8em;

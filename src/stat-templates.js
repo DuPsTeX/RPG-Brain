@@ -5,11 +5,14 @@
  * - resource: Balken mit current/max (z.B. "45/100")
  * - currency: Zahl mit optionaler Einheit (einzelne Währung)
  * - currencies: Objekt mit Währungs-Slots (z.B. { gold: 5, silber: 20, kupfer: 50 })
+ * - attributes: Kompaktes Objekt mit RPG-Attributen (z.B. { STR: 14, DEX: 12, ... })
  * - list: Array von Strings (Items, Fähigkeiten)
  * - equipment: Objekt mit benannten Slots
  * - number: Einfache Zahl
  * - text: Freitext
  */
+
+const DEFAULT_DND_ATTRIBUTES = { STR: 10, DEX: 10, CON: 10, INT: 10, WIS: 10, CHA: 10 };
 
 export const PRESET_TEMPLATES = [
   {
@@ -18,10 +21,12 @@ export const PRESET_TEMPLATES = [
     fields: [
       { key: 'hp', label: 'HP', type: 'resource', format: 'current/max', default: '100/100' },
       { key: 'mana', label: 'Mana', type: 'resource', format: 'current/max', default: '50/50' },
+      { key: 'klasse', label: 'Klasse', type: 'text', default: '-' },
       { key: 'level', label: 'Level', type: 'number', default: 1 },
-      { key: 'geld', label: 'Gold', type: 'currency', default: '0' },
+      { key: 'attribute', label: 'Attribute', type: 'attributes', subfields: ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'], default: { ...DEFAULT_DND_ATTRIBUTES } },
+      { key: 'geld', label: 'Geld', type: 'currencies', subfields: ['gold', 'silber', 'kupfer'], default: { gold: 0, silber: 0, kupfer: 0 } },
       { key: 'inventar', label: 'Inventar', type: 'list', default: [] },
-      { key: 'ausruestung', label: 'Ausrüstung', type: 'equipment', subfields: ['waffe', 'ruestung', 'schild', 'helm', 'accessoire'], default: {} },
+      { key: 'ausruestung', label: 'Ausrüstung', type: 'equipment', subfields: ['waffe_rechts', 'waffe_links', 'ruestung', 'schild', 'helm', 'accessoire'], default: {} },
       { key: 'faehigkeiten', label: 'Fähigkeiten', type: 'list', default: [] },
     ],
   },
@@ -78,6 +83,7 @@ export const PRESET_TEMPLATES = [
       { key: 'sauberkeit', label: 'Sauberkeit', type: 'resource', format: 'current/max', default: '100/100' },
       { key: 'klasse', label: 'Klasse', type: 'text', default: '-' },
       { key: 'level', label: 'Level', type: 'number', default: 1 },
+      { key: 'attribute', label: 'Attribute', type: 'attributes', subfields: ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'], default: { ...DEFAULT_DND_ATTRIBUTES } },
       { key: 'geld', label: 'Geld', type: 'currencies', subfields: ['gold', 'silber', 'kupfer'], default: { gold: 0, silber: 0, kupfer: 0 } },
       { key: 'inventar', label: 'Inventar', type: 'list', default: [] },
       { key: 'ausruestung', label: 'Ausrüstung / Kleidung', type: 'equipment', subfields: ['waffe_rechts', 'waffe_links', 'oberteil', 'unterteil', 'unterwaesche', 'schuhe', 'accessoire'], default: {} },
@@ -143,6 +149,14 @@ export function buildExampleStatus(fields) {
           }
         }
         break;
+      case 'attributes':
+        example[field.key] = {};
+        if (field.subfields) {
+          for (const sf of field.subfields) {
+            example[field.key][sf] = (field.default && field.default[sf]) || 10;
+          }
+        }
+        break;
       case 'number':
         example[field.key] = field.default || 0;
         break;
@@ -187,6 +201,10 @@ export function buildFieldDescription(fields, language) {
       case 'currencies': {
         const coins = f.subfields ? f.subfields.join(', ') : '';
         return `${f.key}: ${f.label} (${language === 'de' ? 'Objekt mit Münz-Slots, Zahlen' : 'object with coin slots, numbers'}: ${coins})`;
+      }
+      case 'attributes': {
+        const attrs = f.subfields ? f.subfields.join(', ') : '';
+        return `${f.key}: ${f.label} (${language === 'de' ? 'Objekt mit festen RPG-Attributen, Zahlen 3-20' : 'object with fixed RPG attributes, numbers 3-20'}: ${attrs})`;
       }
       default:
         return `${f.key}: ${f.label}`;

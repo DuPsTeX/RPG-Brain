@@ -107,7 +107,11 @@ function renderTemplateStats(status, fields, charName) {
 
   for (let i = 0; i < fields.length; i++) {
     const field = fields[i];
-    const value = status[field.key];
+    let value = status[field.key];
+    // Attribute sollen immer sichtbar sein — falls LLM nichts liefert, Default nutzen
+    if ((value === undefined || value === null) && field.type === 'attributes' && field.default) {
+      value = field.default;
+    }
     if (value === undefined || value === null) continue;
 
     const color = COLORS[i % COLORS.length];
@@ -138,6 +142,25 @@ function renderTemplateStats(status, fields, charName) {
             <span class="rpg-brain-stat-value rpg-brain-stat-editable" data-char="${escapeHtml(charName)}" data-field="${field.key}">${escapeHtml(String(value))}</span>
           </div>
         `);
+        break;
+      }
+      case 'attributes': {
+        // RPG-Attribute: { STR: 14, DEX: 12, ... } → kompakte inline 6er-Grid
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+          const cells = Object.entries(value).map(([attr, num]) => {
+            const label = String(attr).toUpperCase();
+            return `<div class="rpg-brain-attr-cell">
+              <span class="rpg-brain-attr-label">${escapeHtml(label)}</span>
+              <span class="rpg-brain-attr-value rpg-brain-stat-editable" data-char="${escapeHtml(charName)}" data-field="${field.key}.${attr}">${escapeHtml(String(num ?? '-'))}</span>
+            </div>`;
+          }).join('');
+          bars.push(`
+            <div class="rpg-brain-attributes-block">
+              <div class="rpg-brain-attributes-label">${escapeHtml(field.label)}</div>
+              <div class="rpg-brain-attributes-grid">${cells}</div>
+            </div>
+          `);
+        }
         break;
       }
       case 'currencies': {
