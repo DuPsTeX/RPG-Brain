@@ -319,6 +319,20 @@ Regeln:
           } else {
             score = 0;
           }
+        } else if (entity.typeId === 'erinnerung') {
+          // Erinnerung: relevant wenn mindestens eine beteiligte Person anwesend ist.
+          // Top-3-Selektion passiert in formatErinnerungen() anhand kombiniertem Score.
+          const von = entity.data.von?.toLowerCase() || '';
+          const zu = entity.data.zu?.toLowerCase() || '';
+          const vonPresent = anwesendeLower.includes(von);
+          const zuPresent = anwesendeLower.includes(zu);
+          if (vonPresent && zuPresent) {
+            score += 10;
+          } else if (vonPresent || zuPresent) {
+            score += 6;
+          } else {
+            score = 0;
+          }
         } else if (entity.typeId === 'ort') {
           if (sceneOrtLower && this._ortMatchesScene(name, sceneOrtLower)) {
             score += 10;
@@ -384,7 +398,7 @@ Regeln:
 
     // Szene-Filter: Nur Entities mit positivem Score (in der Szene oder relevant)
     if (scene && scene.anwesende.length > 0) {
-      const sceneTypes = ['charakter', 'beziehung', 'ort'];
+      const sceneTypes = ['charakter', 'beziehung', 'ort', 'erinnerung'];
       filtered = filtered.filter(e => {
         if (sceneTypes.includes(e.typeId)) {
           return e._score > 0;

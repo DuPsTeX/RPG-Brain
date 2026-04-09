@@ -131,6 +131,10 @@ function buildTypeReminder(activeTypes, language) {
   const typeHints = {
     charakter: { de: 'Jede Person, NPC, Kreatur mit Namen', en: 'Any person, NPC, creature with a name' },
     beziehung: { de: 'Wie Charaktere zueinander stehen (Freund, Feind, Romanze...)', en: 'How characters relate to each other (friend, enemy, romance...)' },
+    erinnerung: {
+      de: 'Spezifische, einprägsame Erlebnisse zwischen zwei Charakteren (von→zu + narrativer Text). Erstelle NEUE Erinnerungen für bedeutsame Momente: intime/emotionale Szenen, Versprechen, Verrat, erste Begegnungen, Kämpfe. Das Feld "text" enthält eine lebendige Beschreibung des Ereignisses aus der Perspektive von "von". Setze "wichtig" (0-100) nach narrativer Bedeutung: 80-100 für lebensverändernde Momente, 50-79 für wichtige Ereignisse, 20-49 für Alltagserinnerungen. Immer action:"create", niemals update — Erinnerungen werden gesammelt, nicht überschrieben.',
+      en: 'Specific, memorable experiences between two characters (von→zu + narrative text). Create NEW memories for significant moments: intimate/emotional scenes, promises, betrayals, first meetings, battles. The "text" field contains a vivid description of the event from the perspective of "von". Set "wichtig" (0-100) by narrative importance: 80-100 for life-changing moments, 50-79 for important events, 20-49 for everyday memories. Always action:"create", never update — memories accumulate, they are not overwritten.',
+    },
     ort: { de: 'Jeder Ort: Stadt, Raum, Gebäude, Wald, Dungeon...', en: 'Any location: city, room, building, forest, dungeon...' },
     quest: { de: 'Aufgaben, Ziele, Missionen, Versprechen', en: 'Tasks, goals, missions, promises' },
     item: { de: 'Waffen, Rüstungen, Tränke, Schlüssel, Werkzeuge, magische Gegenstände', en: 'Weapons, armor, potions, keys, tools, magical objects' },

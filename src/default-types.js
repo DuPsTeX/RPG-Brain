@@ -44,6 +44,20 @@ export const DEFAULT_ENTITY_TYPES = [
     ],
   },
   {
+    id: 'erinnerung',
+    name: 'Erinnerung',
+    icon: '💭',
+    color: '#ffb86b',
+    builtIn: true,
+    fields: [
+      { key: 'von', type: 'relation', relationType: 'charakter', required: true, label: 'Von (Charakter)' },
+      { key: 'zu', type: 'relation', relationType: 'charakter', required: true, label: 'Zu (Charakter)' },
+      { key: 'text', type: 'text', required: true, label: 'Erinnerungstext' },
+      { key: 'wichtig', type: 'number', min: 0, max: 100, label: 'Wichtigkeit', display: 'bar' },
+      { key: 'tags', type: 'string', label: 'Tags / Keywords' },
+    ],
+  },
+  {
     id: 'ort',
     name: 'Ort',
     icon: '📍',

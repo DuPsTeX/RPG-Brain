@@ -66,6 +66,16 @@ export const DEFAULT_SECTIONS = [
     entityTypes: ['beziehung'],
     format: formatBeziehungen,
   },
+  {
+    id: 'erinnerungen',
+    name: 'Relevante Erinnerungen',
+    icon: '💭',
+    priority: 7,
+    enabled: true,
+    builtIn: true,
+    entityTypes: ['erinnerung'],
+    format: formatErinnerungen,
+  },
 ];
 
 // --- Format-Funktionen ---
@@ -191,6 +201,32 @@ function formatBeziehungen(entities) {
   });
 
   return `💜 RELEVANTE BEZIEHUNGEN:\n${lines.join('\n')}`;
+}
+
+/**
+ * Formatiert Charakter-Erinnerungen. Nimmt die Top 3 nach kombiniertem Score
+ * (data.wichtig + _score aus _getRelevantEntities, der Szene-Präsenz und
+ * LightRAG-Boost enthält).
+ */
+function formatErinnerungen(entities) {
+  if (!entities.length) return '';
+
+  const top3 = entities
+    .slice()
+    .sort((a, b) => {
+      const aRank = (a.data.wichtig || 0) + (a._score || 0);
+      const bRank = (b.data.wichtig || 0) + (b._score || 0);
+      return bRank - aRank;
+    })
+    .slice(0, 3);
+
+  const lines = top3.map(e => {
+    const d = e.data;
+    const text = d.text || d.beschreibung || '(keine Details)';
+    return `- ${d.von} → ${d.zu}: ${text}`;
+  });
+
+  return `💭 RELEVANTE ERINNERUNGEN:\n${lines.join('\n')}`;
 }
 
 // --- Sections Manager ---
