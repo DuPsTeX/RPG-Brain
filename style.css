@@ -836,6 +836,45 @@ scene,
   color: #f0a500;
 }
 
+/* Multi-Währungen Inline-Anzeige */
+.rpg-brain-currencies-row {
+  align-items: flex-start;
+}
+
+.rpg-brain-currencies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.rpg-brain-currency-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(240, 165, 0, 0.1);
+  border: 1px solid rgba(240, 165, 0, 0.25);
+  font-size: 0.8em;
+  white-space: nowrap;
+}
+
+.rpg-brain-currency-icon {
+  font-size: 0.9em;
+}
+
+.rpg-brain-currency-name {
+  color: rgba(255, 255, 255, 0.55);
+  text-transform: capitalize;
+}
+
+.rpg-brain-currency-value {
+  color: #f0a500;
+  font-weight: 600;
+}
+
 /* Resource-Balken Label */
 .rpg-brain-bar-label {
   font-size: 0.8em;

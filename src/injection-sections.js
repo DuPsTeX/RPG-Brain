@@ -189,6 +189,7 @@ function formatOrte(entities, scene) {
   if (d.beschreibung) text += ` — ${d.beschreibung}`;
   if (d.npcs) text += `\n  → NPCs hier: ${d.npcs}`;
   if (d.events) text += `\n  → Geschehen: ${d.events}`;
+  if (d.inventar) text += `\n  → Items hier: ${d.inventar}`;
   return text;
 }
 

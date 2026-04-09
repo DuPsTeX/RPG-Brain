@@ -135,7 +135,10 @@ function buildTypeReminder(activeTypes, language) {
       de: 'Spezifische, einprägsame Erlebnisse zwischen zwei Charakteren (von→zu + narrativer Text). Erstelle NEUE Erinnerungen für bedeutsame Momente: intime/emotionale Szenen, Versprechen, Verrat, erste Begegnungen, Kämpfe. Das Feld "text" enthält eine lebendige Beschreibung des Ereignisses aus der Perspektive von "von". Setze "wichtig" (0-100) nach narrativer Bedeutung: 80-100 für lebensverändernde Momente, 50-79 für wichtige Ereignisse, 20-49 für Alltagserinnerungen. Immer action:"create", niemals update — Erinnerungen werden gesammelt, nicht überschrieben.',
       en: 'Specific, memorable experiences between two characters (von→zu + narrative text). Create NEW memories for significant moments: intimate/emotional scenes, promises, betrayals, first meetings, battles. The "text" field contains a vivid description of the event from the perspective of "von". Set "wichtig" (0-100) by narrative importance: 80-100 for life-changing moments, 50-79 for important events, 20-49 for everyday memories. Always action:"create", never update — memories accumulate, they are not overwritten.',
     },
-    ort: { de: 'Jeder Ort: Stadt, Raum, Gebäude, Wald, Dungeon...', en: 'Any location: city, room, building, forest, dungeon...' },
+    ort: {
+      de: 'Jeder Ort: Stadt, Raum, Gebäude, Wald, Dungeon... WICHTIG: Wenn Charaktere Items an einem Ort liegen/verstecken/zurücklassen, trage sie ins "inventar"-Feld des Orts ein (z.B. "Kurzschwert unterm Bett, Brief auf dem Tisch"). Bei update-action: vorhandene Items nicht überschreiben, sondern ergänzen.',
+      en: 'Any location: city, room, building, forest, dungeon... IMPORTANT: When characters leave/hide/drop items at a location, record them in the "inventar" field of the location (e.g. "Shortsword under bed, letter on table"). On update action: append to existing items, do not overwrite.',
+    },
     quest: { de: 'Aufgaben, Ziele, Missionen, Versprechen', en: 'Tasks, goals, missions, promises' },
     item: { de: 'Waffen, Rüstungen, Tränke, Schlüssel, Werkzeuge, magische Gegenstände', en: 'Weapons, armor, potions, keys, tools, magical objects' },
     event: { de: 'Wichtige Ereignisse: Kämpfe, Entdeckungen, Plot-Twists', en: 'Important events: battles, discoveries, plot twists' },

@@ -3,7 +3,8 @@
 /**
  * Field Types:
  * - resource: Balken mit current/max (z.B. "45/100")
- * - currency: Zahl mit optionaler Einheit
+ * - currency: Zahl mit optionaler Einheit (einzelne Währung)
+ * - currencies: Objekt mit Währungs-Slots (z.B. { gold: 5, silber: 20, kupfer: 50 })
  * - list: Array von Strings (Items, Fähigkeiten)
  * - equipment: Objekt mit benannten Slots
  * - number: Einfache Zahl
@@ -75,9 +76,11 @@ export const PRESET_TEMPLATES = [
       { key: 'erregung', label: 'Erregung', type: 'resource', format: 'current/max', default: '0/100' },
       { key: 'hunger', label: 'Hunger', type: 'resource', format: 'current/max', default: '100/100' },
       { key: 'sauberkeit', label: 'Sauberkeit', type: 'resource', format: 'current/max', default: '100/100' },
-      { key: 'geld', label: 'Gold', type: 'currency', default: '0' },
+      { key: 'klasse', label: 'Klasse', type: 'text', default: '-' },
+      { key: 'level', label: 'Level', type: 'number', default: 1 },
+      { key: 'geld', label: 'Geld', type: 'currencies', subfields: ['gold', 'silber', 'kupfer'], default: { gold: 0, silber: 0, kupfer: 0 } },
       { key: 'inventar', label: 'Inventar', type: 'list', default: [] },
-      { key: 'ausruestung', label: 'Ausrüstung / Kleidung', type: 'equipment', subfields: ['oberteil', 'unterteil', 'unterwaesche', 'schuhe', 'accessoire'], default: {} },
+      { key: 'ausruestung', label: 'Ausrüstung / Kleidung', type: 'equipment', subfields: ['waffe_rechts', 'waffe_links', 'oberteil', 'unterteil', 'unterwaesche', 'schuhe', 'accessoire'], default: {} },
       { key: 'zustand', label: 'Körperlicher Zustand', type: 'text', default: 'normal' },
     ],
   },
@@ -132,6 +135,14 @@ export function buildExampleStatus(fields) {
       case 'currency':
         example[field.key] = field.default || '0';
         break;
+      case 'currencies':
+        example[field.key] = {};
+        if (field.subfields) {
+          for (const sf of field.subfields) {
+            example[field.key][sf] = 0;
+          }
+        }
+        break;
       case 'number':
         example[field.key] = field.default || 0;
         break;
@@ -172,6 +183,10 @@ export function buildFieldDescription(fields, language) {
       case 'equipment': {
         const slots = f.subfields ? f.subfields.join(', ') : '';
         return `${f.key}: ${f.label} (${language === 'de' ? 'Objekt mit Slots' : 'object with slots'}: ${slots})`;
+      }
+      case 'currencies': {
+        const coins = f.subfields ? f.subfields.join(', ') : '';
+        return `${f.key}: ${f.label} (${language === 'de' ? 'Objekt mit Münz-Slots, Zahlen' : 'object with coin slots, numbers'}: ${coins})`;
       }
       default:
         return `${f.key}: ${f.label}`;

@@ -69,6 +69,7 @@ export const DEFAULT_ENTITY_TYPES = [
       { key: 'beschreibung', type: 'text', label: 'Beschreibung' },
       { key: 'events', type: 'text', label: 'Was hier geschah' },
       { key: 'npcs', type: 'text', label: 'Bekannte NPCs hier' },
+      { key: 'inventar', type: 'text', label: 'Zurückgelassene Items', hint: 'Items die an diesem Ort liegen/versteckt sind (z.B. "Kurzschwert unterm Bett", "Schatztruhe mit 50 Gold")' },
       { key: 'bild', type: 'image', label: 'Bild' },
     ],
   },

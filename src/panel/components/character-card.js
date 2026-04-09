@@ -140,6 +140,29 @@ function renderTemplateStats(status, fields, charName) {
         `);
         break;
       }
+      case 'currencies': {
+        // Multi-Währung: { gold: 5, silber: 20, kupfer: 50 } → inline Pills pro Münze
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+          const coinIcons = { gold: '🟡', silber: '⚪', kupfer: '🟤', credits: '💠', seelen: '👻' };
+          const entries = Object.entries(value)
+            .map(([coin, amount]) => {
+              const icon = coinIcons[coin] || '💰';
+              const displayName = coin.charAt(0).toUpperCase() + coin.slice(1);
+              return `<span class="rpg-brain-currency-pill">
+                <span class="rpg-brain-currency-icon">${icon}</span>
+                <span class="rpg-brain-currency-name">${escapeHtml(displayName)}:</span>
+                <span class="rpg-brain-currency-value rpg-brain-stat-editable" data-char="${escapeHtml(charName)}" data-field="${field.key}.${coin}">${escapeHtml(String(amount ?? 0))}</span>
+              </span>`;
+            }).join('');
+          bars.push(`
+            <div class="rpg-brain-stat-row rpg-brain-currencies-row">
+              <span class="rpg-brain-stat-label">${escapeHtml(field.label)}:</span>
+              <div class="rpg-brain-currencies">${entries}</div>
+            </div>
+          `);
+        }
+        break;
+      }
       case 'list': {
         if (Array.isArray(value) && value.length > 0) {
           const pills = value.map(item => `<span class="rpg-brain-inventory-pill">${escapeHtml(String(item))}</span>`).join('');
