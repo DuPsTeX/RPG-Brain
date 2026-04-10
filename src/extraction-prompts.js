@@ -51,6 +51,7 @@ export function getDefaultExtractionPromptTemplate(language = 'de') {
 8. Important narrative info (promises, secrets, plans) belong in the "wichtig" field
 9. QUESTS: Also detect IMPLICIT tasks, goals, missions, promises
 10. RECAP: ALWAYS create exactly one recap (type: "rueckblick") summarizing the analyzed messages
+11. PLAYER CHARACTER: The player character (the one writing messages) MUST also be extracted as a "charakter" entity and receive updates like any other character. Do NOT skip the player just because they are the user.
 
 ## IMPORTANT: Use ALL entity types!
 Check for EACH of the following types whether it appears in the messages:
@@ -95,6 +96,7 @@ If no entities are detected, respond with: []
 8. Wichtige narrative Infos (Versprechen, Geheimnisse, Pläne) gehören in das "wichtig" Feld
 9. QUESTS: Erkenne auch IMPLIZITE Aufträge, Ziele, Missionen, Versprechen
 10. RÜCKBLICK: Erstelle IMMER genau einen Rückblick (type: "rueckblick") der die analysierten Nachrichten zusammenfasst
+11. SPIELERCHARAKTER: Der Spielercharakter (derjenige der die Nachrichten schreibt) MUSS ebenfalls als "charakter" Entity extrahiert und aktualisiert werden wie jeder andere Charakter. Den Spieler NICHT überspringen nur weil er der User ist.
 
 ## WICHTIG: Nutze ALLE Entity-Typen!
 Prüfe für JEDEN der folgenden Typen ob er in den Nachrichten vorkommt:
