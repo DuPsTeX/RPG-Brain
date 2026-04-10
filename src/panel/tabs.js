@@ -97,6 +97,22 @@ export class Tabs {
         }
       }
 
+      // Virtuelle Einträge für Gruppen-Mitglieder die im scene.status stehen
+      // aber keine Entity im EntityManager haben (z.B. {{user}} / Spielercharakter)
+      const entityNames = new Set(chars.map(c => c.data.name?.toLowerCase()));
+      if (scene?.status) {
+        for (const statusName of Object.keys(scene.status)) {
+          if (!entityNames.has(statusName.toLowerCase())) {
+            const isParty = this.partyManager?.isPartyMember(statusName);
+            const isPresent = anwesendeLower.includes(statusName.toLowerCase());
+            if (isParty && isPresent) {
+              // Virtuelle Entity für den Spielercharakter erstellen
+              partyChars.push({ data: { name: statusName }, typeId: 'charakter', _virtual: true });
+            }
+          }
+        }
+      }
+
       // Gruppen-Mitglieder mit vollen Stats
       if (partyChars.length > 0) {
         container.append(this._sectionHeader('⚔️', `Gruppe (${partyChars.length})`));

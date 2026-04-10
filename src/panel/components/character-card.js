@@ -21,10 +21,10 @@ export function renderCharacterCard(entity, inScene = true, options = {}) {
     ? `<img src="${d.portrait}" class="rpg-brain-char-portrait" alt="${d.name}" />`
     : `<div class="rpg-brain-char-portrait rpg-brain-char-portrait--emoji">${defaultEmoji}</div>`;
 
-  // Tags
+  // Tags — klasse/rasse auch aus scene.status holen wenn Entity-Daten fehlen
   const tags = [];
-  if (d.rasse) tags.push(d.rasse);
-  if (d.klasse) tags.push(d.klasse);
+  if (d.rasse || sceneStatus?.rasse) tags.push(d.rasse || sceneStatus.rasse);
+  if (d.klasse || sceneStatus?.klasse) tags.push(d.klasse || sceneStatus.klasse);
   const tagStr = d.tags ? d.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
   tags.push(...tagStr);
   const tagsHtml = tags.map(t => `<span class="rpg-brain-tag">${escapeHtml(t)}</span>`).join('');
